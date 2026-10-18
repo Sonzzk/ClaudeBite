@@ -14,3 +14,7 @@
 -dontwarn kotlin.reflect.jvm.internal.**
 # Our structured-output DTOs are read by Jackson via reflection.
 -keep class com.sonzzk.claudebite.ai.dto.** { *; }
+# Optional compile-time classes referenced by the SDK's transitive deps (OpenTelemetry, Jackson).
+-dontwarn com.google.auto.value.AutoValue
+-dontwarn java.lang.reflect.AnnotatedParameterizedType
+-dontwarn java.lang.reflect.AnnotatedType

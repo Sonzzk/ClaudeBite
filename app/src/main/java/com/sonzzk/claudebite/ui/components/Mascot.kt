@@ -78,11 +78,13 @@ private object MascotArtLookup {
 
     /** Returns a drawable id, or 0 when no PNG exists and the Canvas art should be used. */
     @SuppressLint("DiscouragedApi")
-    fun resolve(resources: Resources, packageName: String, outfit: String, mood: MascotMood): Int {
+    fun resolve(resources: Resources, packageName: String, outfit: String, mood: MascotMood, small: Boolean): Int {
         val m = mood.name.lowercase()
         val o = outfit.lowercase()
-        return cache.getOrPut("$o/$m") {
-            listOf("mascot_${o}_$m", "mascot_classic_$m", "mascot_${o}_happy", "mascot_classic_happy")
+        return cache.getOrPut("$o/$m/$small") {
+            // Tiny avatars (chat header, bubbles) read better as a head-and-shoulders portrait.
+            val portrait = if (small) listOf("mascot_${o}_portrait", "mascot_classic_portrait") else emptyList()
+            (portrait + listOf("mascot_${o}_$m", "mascot_classic_$m", "mascot_${o}_happy", "mascot_classic_happy"))
                 .firstNotNullOfOrNull { name ->
                     resources.getIdentifier(name, "drawable", packageName).takeIf { it != 0 }
                 } ?: 0
@@ -167,8 +169,8 @@ fun Mascot(
                 },
         ) {
             Crossfade(targetState = mood, animationSpec = tween(260), label = "moodFade") { m ->
-                val resId = remember(outfit, m) {
-                    MascotArtLookup.resolve(context.resources, context.packageName, outfit, m)
+                val resId = remember(outfit, m, size) {
+                    MascotArtLookup.resolve(context.resources, context.packageName, outfit, m, small = size < 80.dp)
                 }
                 if (resId != 0) {
                     Image(

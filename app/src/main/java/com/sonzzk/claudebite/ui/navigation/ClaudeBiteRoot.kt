@@ -99,7 +99,8 @@ fun ClaudeBiteRoot(container: AppContainer) {
             Scaffold(
                 bottomBar = { if (showBar) BottomBar(nav, currentRoute) },
                 floatingActionButton = {
-                    if (showBar) {
+                    // The camera button lives on Today only, so it never covers the chat input or lists.
+                    if (showBar && currentRoute == Routes.HOME) {
                         FloatingActionButton(
                             onClick = { nav.navigate(Routes.log(null)) },
                             containerColor = MaterialTheme.colorScheme.primary,

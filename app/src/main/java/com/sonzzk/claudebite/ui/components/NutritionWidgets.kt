@@ -16,6 +16,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -265,13 +267,16 @@ fun WaterTracker(
                 Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = "Undo last water")
             }
         }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        // All glasses share one row so the card never wraps awkwardly.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             repeat(glasses) { index ->
                 val fill = ((ml - index * GLASS_ML) / GLASS_ML.toFloat()).coerceIn(0f, 1f)
-                WaterGlass(fill = fill, onTap = { onAdd(GLASS_ML) }, onLongPress = { onAdd(GLASS_ML * 2) })
+                WaterGlass(
+                    fill = fill,
+                    onTap = { onAdd(GLASS_ML) },
+                    onLongPress = { onAdd(GLASS_ML * 2) },
+                    modifier = Modifier.weight(1f).widthIn(max = 34.dp),
+                )
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -286,7 +291,7 @@ fun WaterTracker(
 /** One glass drawn on a Canvas; the water surface is a sine wave that keeps sloshing. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun WaterGlass(fill: Float, onTap: () -> Unit, onLongPress: () -> Unit) {
+private fun WaterGlass(fill: Float, onTap: () -> Unit, onLongPress: () -> Unit, modifier: Modifier = Modifier) {
     val level by animateFloatAsState(fill, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessLow), label = "glass")
     val phase by rememberInfiniteTransition(label = "wave").animateFloat(
         initialValue = 0f,
@@ -296,8 +301,8 @@ private fun WaterGlass(fill: Float, onTap: () -> Unit, onLongPress: () -> Unit) 
     )
     val outline = MaterialTheme.colorScheme.outline
     Canvas(
-        Modifier
-            .size(width = 30.dp, height = 40.dp)
+        modifier
+            .aspectRatio(0.75f)
             .clip(RoundedCornerShape(6.dp))
             .combinedClickable(onClick = onTap, onLongClick = onLongPress),
     ) {

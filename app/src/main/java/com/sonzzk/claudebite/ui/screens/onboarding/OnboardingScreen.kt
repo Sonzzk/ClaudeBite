@@ -66,7 +66,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         // Top bar: back arrow + progress dots.
         Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp)) {
-                AnimatedVisibility(!state.isFirst) {
+                androidx.compose.animation.AnimatedVisibility(visible = !state.isFirst) {
                     IconButton(onClick = vm::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
                 }
             }

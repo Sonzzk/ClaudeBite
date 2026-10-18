@@ -1,6 +1,10 @@
 package com.sonzzk.claudebite.ui.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -19,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -66,6 +71,7 @@ private val tabs = listOf(
     Tab(Routes.CLOSET, "Closet", Icons.Rounded.Checkroom),
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ClaudeBiteRoot(container: AppContainer) {
     CompositionLocalProvider(LocalAppContainer provides container) {
@@ -74,10 +80,20 @@ fun ClaudeBiteRoot(container: AppContainer) {
         val loaded = profile ?: return@CompositionLocalProvider // splash stays until DataStore loads
 
         val nav = rememberNavController()
-        val start = if (loaded.onboarded) Routes.HOME else Routes.ONBOARDING
+        // Decide the start screen once; later changes are handled by the effect below.
+        val start = remember { if (loaded.onboarded) Routes.HOME else Routes.ONBOARDING }
         val backStack by nav.currentBackStackEntryAsState()
         val currentRoute = backStack?.destination?.route
-        val showBar = tabs.any { it.route == currentRoute }
+        // Hide the bottom bar while typing so the chat input sits right above the keyboard.
+        val imeVisible = WindowInsets.isImeVisible
+        val showBar = tabs.any { it.route == currentRoute } && !imeVisible
+
+        // "Reset everything" in Settings clears the profile: send the user back to onboarding.
+        LaunchedEffect(loaded.onboarded) {
+            if (!loaded.onboarded && nav.currentDestination?.route != Routes.ONBOARDING) {
+                nav.navigate(Routes.ONBOARDING) { popUpTo(0) { inclusive = true } }
+            }
+        }
 
         Box(Modifier.fillMaxSize()) {
             Scaffold(
@@ -92,7 +108,7 @@ fun ClaudeBiteRoot(container: AppContainer) {
                     }
                 },
             ) { padding ->
-                NavHost(nav, startDestination = start, modifier = Modifier.padding(padding)) {
+                NavHost(nav, startDestination = start, modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
                     composable(Routes.ONBOARDING) {
                         OnboardingScreen(onFinished = {
                             nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }

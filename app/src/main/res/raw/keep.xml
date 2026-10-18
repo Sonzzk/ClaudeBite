@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Claude-chan's art is looked up by name at runtime (Mascot.kt builds "mascot_<outfit>_<mood>"),
+    so the release resource shrinker can't see that it's used. This tells it to keep all of them.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/mascot_*" />

@@ -13,9 +13,20 @@ android {
         applicationId = "com.sonzzk.claudebite"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "2.0.0"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    // One fixed key for every GitHub build, so new versions install over old ones and keep your data.
+    // It is a sideload-only key (not for the Play Store), so it is fine that it lives in the repo.
+    signingConfigs {
+        create("sideload") {
+            storeFile = file("claudebite-sideload.jks")
+            storePassword = "claudebite"
+            keyAlias = "claudebite"
+            keyPassword = "claudebite"
+        }
     }
 
     buildTypes {
@@ -23,8 +34,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signed with the debug key so the release APK installs directly from GitHub.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("sideload")
         }
     }
     compileOptions {

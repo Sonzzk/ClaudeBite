@@ -23,6 +23,8 @@ object Prompts {
         Rules:
         - One item per distinct food. Numbers are for the whole portion shown, not per 100 g.
         - mealName: a short natural name for the whole meal as a person would say it (e.g. "Chicken rice bowl", "Oatmeal with berries"). For a single item, use that item's name.
+        - Branded or restaurant items (e.g. "Big Mac", "Starbucks grande latte"): use the chain's published nutrition.
+        - Nutrition labels: read the printed numbers exactly instead of estimating.
         - Use the user's hint when given. If a portion is unclear, assume a typical serving.
         - Count hidden calories: cooking oil, butter, dressings, sauces, sugary drinks.
         - Use standard nutrition data (USDA-style). Round calories to 5 kcal, grams to 1 decimal.
@@ -53,10 +55,14 @@ object Prompts {
     fun foodTextUserMessage(description: String, context: CoachContext): String =
         "${contextLine(context)}\nFood eaten: ${description.trim()}"
 
-    fun foodPhotoUserMessage(userHint: String?, context: CoachContext): String {
+    fun foodPhotoUserMessage(userHint: String?, context: CoachContext, photos: Int = 1): String {
         val hint = userHint?.trim()?.takeIf { it.isNotEmpty() }?.let { "\nUser hint: $it" } ?: ""
-        return "${contextLine(context)}\nAnalyze the food in this photo.$hint"
+        val what = if (photos > 1) "These $photos photos show ONE meal (e.g. plate + packaging). Analyze it once, without double counting." else "Analyze the food in this photo."
+        return "${contextLine(context)}\n$what$hint"
     }
+
+    /** Hint used by "Scan label": read the nutrition facts exactly instead of estimating. */
+    const val LABEL_HINT = "This is a nutrition facts label. Read the exact values for ONE serving as printed (use the per-serving column, or per 100 g if that's all there is) and use the product name if visible. Confidence should be high when the label is readable."
 
     /**
      * One compact line describing the user, e.g.

@@ -78,17 +78,23 @@ class ClaudeCoach(
 
     // ---------- Food ----------
 
-    override suspend fun analyzeFoodPhoto(jpegBytes: ByteArray, userHint: String?, context: CoachContext): FoodAnalysis {
-        val image = ImageBlockParam.builder()
-            .source(
-                Base64ImageSource.builder()
-                    .mediaType(Base64ImageSource.MediaType.IMAGE_JPEG)
-                    .data(Base64.getEncoder().encodeToString(jpegBytes))
-                    .build(),
-            )
-            .build()
-        val text = TextBlockParam.builder().text(Prompts.foodPhotoUserMessage(userHint, context)).build()
-        return analyzeFood(AiTask.FOOD_PHOTO, listOf(ContentBlockParam.ofImage(image), ContentBlockParam.ofText(text)))
+    override suspend fun analyzeFoodPhoto(jpegBytes: ByteArray, userHint: String?, context: CoachContext): FoodAnalysis =
+        analyzeFoodPhotos(listOf(jpegBytes), userHint, context)
+
+    override suspend fun analyzeFoodPhotos(jpegs: List<ByteArray>, userHint: String?, context: CoachContext): FoodAnalysis {
+        val images = jpegs.take(4).map { bytes ->
+            val image = ImageBlockParam.builder()
+                .source(
+                    Base64ImageSource.builder()
+                        .mediaType(Base64ImageSource.MediaType.IMAGE_JPEG)
+                        .data(Base64.getEncoder().encodeToString(bytes))
+                        .build(),
+                )
+                .build()
+            ContentBlockParam.ofImage(image)
+        }
+        val text = TextBlockParam.builder().text(Prompts.foodPhotoUserMessage(userHint, context, images.size)).build()
+        return analyzeFood(AiTask.FOOD_PHOTO, images + ContentBlockParam.ofText(text))
     }
 
     override suspend fun analyzeFoodText(description: String, context: CoachContext): FoodAnalysis {

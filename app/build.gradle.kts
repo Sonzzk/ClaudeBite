@@ -82,6 +82,13 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Barcode scanning through Google Play services: no camera permission, the scanner UI is provided.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Glance home screen widgets and WorkManager reminders
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+
     // Official Anthropic SDK (Kotlin uses the Java SDK)
     implementation("com.anthropic:anthropic-java:2.73.0")
 

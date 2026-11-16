@@ -5,7 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -160,6 +163,42 @@ internal fun HeroCard(state: HomeUiState, onOpenChat: () -> Unit) {
                 Icon(Icons.AutoMirrored.Rounded.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text("Ask me anything")
+            }
+        }
+    }
+}
+
+
+/** The last two weeks as tappable day chips, newest on the right. Lets you view and log past days. */
+@Composable
+internal fun DateStrip(selected: java.time.LocalDate, onSelect: (java.time.LocalDate) -> Unit) {
+    val today = java.time.LocalDate.now()
+    val days = remember(today) { (13 downTo 0).map { today.minusDays(it.toLong()) } }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = days.size - 1)
+    androidx.compose.foundation.lazy.LazyRow(
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        items(days.size) { i ->
+            val d = days[i]
+            val isSel = d == selected
+            val bg = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+            val fg = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            Column(
+                Modifier
+                    .width(46.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(bg)
+                    .clickable { onSelect(d) }
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    if (d == today) "Today" else d.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()),
+                    style = MaterialTheme.typography.labelSmall, color = fg, maxLines = 1,
+                )
+                Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.titleMedium, color = fg)
             }
         }
     }

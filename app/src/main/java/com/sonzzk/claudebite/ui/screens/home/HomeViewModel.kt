@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -36,6 +38,11 @@ data class HomeUiState(
     val waterMl: Int = 0,
     val streak: Int = 0,
     val daysAway: Int = 0,
+    /** The day being viewed (yyyy-MM-dd). Today by default; the date strip picks earlier days. */
+    val date: String = LocalDate.now().toString(),
+    val isToday: Boolean = true,
+    /** The previous day's entries, for "Copy yesterday's lunch". */
+    val previousDay: List<FoodEntry> = emptyList(),
 ) {
     val eaten: Int get() = entries.sumOf { it.calories }
     val protein: Float get() = entries.sumOf { it.proteinG.toDouble() }.toFloat()
@@ -61,30 +68,49 @@ data class HomeUiState(
         )
 }
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
 
-    private val today = repository.today()
     private val daysAway = MutableStateFlow(0)
+    private val selectedDate = MutableStateFlow(LocalDate.now())
+
+    /** Follows the real date across midnight while the user is on "today". */
+    private val today = kotlinx.coroutines.flow.flow {
+        while (true) {
+            emit(LocalDate.now())
+            kotlinx.coroutines.delay(60_000)
+        }
+    }.distinctUntilChanged()
+
+    private val viewedDate = combine(selectedDate, today) { sel, now -> if (sel.isAfter(now)) now else sel }
 
     /** Entries swiped away but not deleted yet, so "Undo" can bring them back without touching the database. */
     private val pendingDeletes = MutableStateFlow<Set<Long>>(emptySet())
 
     val state: StateFlow<HomeUiState> = combine(
         combine(repository.profiles.profile, repository.profiles.progression) { p, g -> p to g },
-        repository.entriesFor(today),
-        repository.waterToday(),
+        viewedDate.flatMapLatest { d ->
+            combine(
+                repository.entriesFor(d.toString()),
+                repository.entriesFor(d.minusDays(1).toString()),
+                repository.waterFor(d.toString()),
+            ) { e, prev, w -> DayData(d, e, prev, w) }
+        },
         pendingDeletes,
         daysAway,
-    ) { (profile, progression), entries, water, pending, away ->
+    ) { (profile, progression), day, pending, away ->
         HomeUiState(
             loading = false,
             profile = profile,
             targets = NutritionCalculator.targets(profile),
             progression = progression,
-            entries = entries.filterNot { it.id in pending },
-            waterMl = water,
+            entries = day.entries.filterNot { it.id in pending },
+            waterMl = day.water,
             streak = repository.currentStreak(),
             daysAway = away,
+            date = day.date.toString(),
+            isToday = day.date == LocalDate.now(),
+            previousDay = day.previous,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -96,6 +122,15 @@ class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
             daysAway.value = if (last == 0L) 0 else (todayEpoch - last).toInt().coerceAtLeast(0)
             repository.profiles.markOpened(todayEpoch)
         }
+    }
+
+    fun selectDate(date: LocalDate) {
+        selectedDate.value = date
+    }
+
+    fun copyFromPreviousDay(meal: MealType) {
+        val d = LocalDate.parse(state.value.date)
+        viewModelScope.launch { repository.copyMealSlot(d.minusDays(1).toString(), d.toString(), meal) }
     }
 
     fun addWater(ml: Int) {
@@ -132,3 +167,5 @@ class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
         viewModelScope.launch { repository.updateEntry(entry) }
     }
 }
+
+private data class DayData(val date: LocalDate, val entries: List<FoodEntry>, val previous: List<FoodEntry>, val water: Int)

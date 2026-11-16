@@ -53,13 +53,13 @@ import com.sonzzk.claudebite.ui.screens.settings.SettingsScreen
 object Routes {
     const val ONBOARDING = "onboarding"
     const val HOME = "home"
-    const val LOG = "log?meal={meal}"
+    const val LOG = "log?meal={meal}&date={date}"
     const val CHAT = "chat"
     const val PROGRESS = "progress"
     const val CLOSET = "closet"
     const val SETTINGS = "settings"
 
-    fun log(meal: MealType?) = "log?meal=${meal?.name ?: ""}"
+    fun log(meal: MealType?, date: String? = null) = "log?meal=${meal?.name ?: ""}&date=${date ?: ""}"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -117,18 +117,22 @@ fun ClaudeBiteRoot(container: AppContainer) {
                     }
                     composable(Routes.HOME) {
                         HomeScreen(
-                            onLogFood = { meal -> nav.navigate(Routes.log(meal)) },
+                            onLogFood = { meal, date -> nav.navigate(Routes.log(meal, date)) },
                             onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                             onOpenChat = { nav.navigateTab(Routes.CHAT) },
                         )
                     }
                     composable(
                         Routes.LOG,
-                        arguments = listOf(navArgument("meal") { type = NavType.StringType; defaultValue = "" }),
+                        arguments = listOf(
+                            navArgument("meal") { type = NavType.StringType; defaultValue = "" },
+                            navArgument("date") { type = NavType.StringType; defaultValue = "" },
+                        ),
                     ) { entry ->
                         val meal = entry.arguments?.getString("meal")?.takeIf { it.isNotBlank() }
                             ?.let { runCatching { MealType.valueOf(it) }.getOrNull() }
-                        LogFoodScreen(initialMeal = meal, onDone = { nav.popBackStack() })
+                        val date = entry.arguments?.getString("date")?.takeIf { it.isNotBlank() }
+                        LogFoodScreen(initialMeal = meal, date = date, onDone = { nav.popBackStack() })
                     }
                     composable(Routes.CHAT) { ChatScreen() }
                     composable(Routes.PROGRESS) { ProgressScreen() }

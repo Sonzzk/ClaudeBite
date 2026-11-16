@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
  * Swipe a food left to delete it (with Undo); tap it to edit.
  */
 @Composable
-fun HomeScreen(onLogFood: (MealType?) -> Unit, onOpenSettings: () -> Unit, onOpenChat: () -> Unit) {
+fun HomeScreen(onLogFood: (MealType?, String) -> Unit, onOpenSettings: () -> Unit, onOpenChat: () -> Unit) {
     val vm = appViewModel { c -> HomeViewModel(c.repository) }
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -83,6 +83,9 @@ fun HomeScreen(onLogFood: (MealType?) -> Unit, onOpenSettings: () -> Unit, onOpe
                     onOpenSettings = onOpenSettings,
                 )
             }
+            item(key = "dates") {
+                DateStrip(selected = java.time.LocalDate.parse(state.date), onSelect = vm::selectDate)
+            }
             item(key = "hero") {
                 HeroCard(state = state, onOpenChat = onOpenChat)
             }
@@ -96,14 +99,14 @@ fun HomeScreen(onLogFood: (MealType?) -> Unit, onOpenSettings: () -> Unit, onOpe
                     WaterTracker(
                         ml = state.waterMl,
                         goalMl = state.profile.waterGoalMl,
-                        onAdd = { vm.addWater(it) },
-                        onUndo = { vm.undoWater() },
+                        onAdd = { if (state.isToday) vm.addWater(it) },
+                        onUndo = { if (state.isToday) vm.undoWater() },
                     )
                 }
             }
             item(key = "mealsTitle") {
                 Text(
-                    "Today's meals",
+                    if (state.isToday) "Today's meals" else "Meals on ${prettyDate(state.date)}",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(start = 4.dp, top = 4.dp),
                 )
@@ -112,7 +115,11 @@ fun HomeScreen(onLogFood: (MealType?) -> Unit, onOpenSettings: () -> Unit, onOpe
                 MealSection(
                     meal = meal,
                     lines = state.linesByMeal[meal].orEmpty(),
-                    onAdd = { onLogFood(meal) },
+                    onAdd = { onLogFood(meal, state.date) },
+                    copyLabel = state.previousDay.filter { it.mealType == meal }
+                        .takeIf { it.isNotEmpty() && state.linesByMeal[meal].isNullOrEmpty() }
+                        ?.let { prev -> "Same as yesterday (${prev.sumOf { it.calories }} kcal)" },
+                    onCopy = { vm.copyFromPreviousDay(meal) },
                     onDelete = { line ->
                         val label = (line as? GroupedMeal)?.name ?: line.entries.first().name
                         deleteWithUndo(line.entries, label)
@@ -168,3 +175,8 @@ internal fun HomeCard(modifier: Modifier = Modifier, content: @Composable () -> 
         Box(Modifier.padding(18.dp)) { content() }
     }
 }
+
+/** "Mon 14 Nov" for a yyyy-MM-dd date. */
+internal fun prettyDate(iso: String): String = runCatching {
+    java.time.LocalDate.parse(iso).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM"))
+}.getOrDefault(iso)

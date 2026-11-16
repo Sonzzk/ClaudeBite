@@ -10,6 +10,9 @@ import com.sonzzk.claudebite.ai.AnalyzedItem
 import com.sonzzk.claudebite.ai.FoodAnalysis
 import com.sonzzk.claudebite.ai.ImageCompressor
 import com.sonzzk.claudebite.data.HealthRepository
+import com.sonzzk.claudebite.data.food.CommonFoods
+import com.sonzzk.claudebite.data.food.FoodProduct
+import com.sonzzk.claudebite.data.food.OpenFoodFacts
 import com.sonzzk.claudebite.data.db.EntrySource
 import com.sonzzk.claudebite.data.db.FoodEntry
 import com.sonzzk.claudebite.data.db.MealType
@@ -68,7 +71,7 @@ sealed interface LogStage {
 
 /** What we asked Claude last time, so "Try again" can repeat it without re-compressing the photo. */
 internal sealed interface AnalysisRequest {
-    class Photo(val bytes: ByteArray, val photoPath: String, val hint: String?) : AnalysisRequest
+    class Photo(val bytes: List<ByteArray>, val photoPath: String, val hint: String?) : AnalysisRequest
     class Text(val description: String) : AnalysisRequest
 }
 
@@ -81,7 +84,39 @@ class LogFoodViewModel(
     private val repository: HealthRepository,
     private val appContext: Context,
     initialMeal: MealType?,
+    date: String? = null,
 ) : ViewModel() {
+
+    /** The day this log goes to (today unless the user picked an earlier day on Home). */
+    val logDate: String = date ?: repository.today()
+
+    // ---- Food search (built-in list + recent foods instantly, Open Food Facts after a short pause) ----
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query.asStateFlow()
+    private val _online = MutableStateFlow<List<FoodProduct>>(emptyList())
+    private val _searching = MutableStateFlow(false)
+    val searching: StateFlow<Boolean> = _searching.asStateFlow()
+    private var searchJob: Job? = null
+
+    val searchResults: StateFlow<List<FoodProduct>> = kotlinx.coroutines.flow.combine(_query, _online, repository.recentFoods()) { q, online, recent ->
+        if (q.isBlank()) return@combine emptyList()
+        val words = q.lowercase().split(' ').filter { it.isNotBlank() }
+        val fromRecent = recent.filter { e -> words.all { it in e.name.lowercase() } }.take(4).map { it.toProduct() }
+        (fromRecent + CommonFoods.search(q) + online).distinctBy { it.displayName.lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun setQuery(q: String) {
+        _query.value = q.take(60)
+        searchJob?.cancel()
+        _online.value = emptyList()
+        if (q.trim().length < 3) { _searching.value = false; return }
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(600)
+            _searching.value = true
+            _online.value = OpenFoodFacts.search(q)
+            _searching.value = false
+        }
+    }
 
     private val _stage = MutableStateFlow<LogStage>(LogStage.Choose)
     val stage: StateFlow<LogStage> = _stage.asStateFlow()
@@ -107,21 +142,36 @@ class LogFoodViewModel(
     fun setMealType(meal: MealType) { _mealType.value = meal }
 
     /** Compresses the photo (off the main thread), keeps a thumbnail copy, then asks Claude. */
-    fun analyzePhoto(uri: Uri, hint: String?) {
+    fun analyzePhoto(uri: Uri, hint: String?) = analyzePhotos(listOf(uri), hint)
+
+    /** "Scan label": reads a nutrition facts label exactly. */
+    fun analyzeLabel(uri: Uri, hint: String?) =
+        analyzePhotos(listOf(uri), listOfNotNull(com.sonzzk.claudebite.ai.Prompts.LABEL_HINT, hint?.takeIf { it.isNotBlank() }).joinToString(" "))
+
+    /** One or more photos of the same meal (e.g. plate + packaging). */
+    fun analyzePhotos(uris: List<Uri>, hint: String?) {
+        if (uris.isEmpty()) return
         analyzeJob?.cancel()
         _stage.value = LogStage.Analyzing(photoPath = null)
         analyzeJob = viewModelScope.launch {
             val prepared = try {
                 withContext(Dispatchers.IO) {
-                    val bytes = ImageCompressor.fromUri(appContext, uri)
                     val dir = File(appContext.filesDir, "photos").apply { mkdirs() }
-                    val file = File(dir, "${System.currentTimeMillis()}.jpg")
-                    file.writeBytes(bytes)
-                    // The camera's full-size temp file is no longer needed.
-                    if (uri.authority == "${appContext.packageName}.fileprovider") {
-                        runCatching { appContext.contentResolver.delete(uri, null, null) }
+                    var firstPath: String? = null
+                    val all = uris.take(4).mapIndexed { i, uri ->
+                        val bytes = ImageCompressor.fromUri(appContext, uri)
+                        if (i == 0) {
+                            val file = File(dir, "${System.currentTimeMillis()}.jpg")
+                            file.writeBytes(bytes)
+                            firstPath = file.absolutePath
+                        }
+                        // The camera's full-size temp file is no longer needed.
+                        if (uri.authority == "${appContext.packageName}.fileprovider") {
+                            runCatching { appContext.contentResolver.delete(uri, null, null) }
+                        }
+                        bytes
                     }
-                    bytes to file.absolutePath
+                    all to firstPath!!
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -163,7 +213,7 @@ class LogFoodViewModel(
         try {
             val context = repository.coachContext()
             val analysis = when (request) {
-                is AnalysisRequest.Photo -> coach.analyzeFoodPhoto(request.bytes, request.hint, context)
+                is AnalysisRequest.Photo -> coach.analyzeFoodPhotos(request.bytes, request.hint, context)
                 is AnalysisRequest.Text -> coach.analyzeFoodText(request.description, context)
             }
             _stage.value = LogStage.Review(
@@ -206,7 +256,7 @@ class LogFoodViewModel(
         if (review.items.isEmpty() || review.saving) return
         _stage.value = review.copy(saving = true)
         viewModelScope.launch {
-            repository.logAnalysis(review.analysis, review.total, _mealType.value, review.source, review.photoPath, review.mealName)
+            repository.logAnalysis(review.analysis, review.total, _mealType.value, review.source, review.photoPath, review.mealName, logDate)
             _stage.value = LogStage.Saved
         }
     }
@@ -217,10 +267,11 @@ class LogFoodViewModel(
         viewModelScope.launch {
             repository.logManual(
                 FoodEntry(
-                    date = repository.today(), timestamp = System.currentTimeMillis(), mealType = _mealType.value,
+                    date = logDate, timestamp = System.currentTimeMillis(), mealType = _mealType.value,
                     name = name.ifBlank { "Food" }, portion = "1 serving", calories = calories,
                     proteinG = protein, carbsG = carbs, fatG = fat, source = EntrySource.MANUAL,
-                )
+                ),
+                logDate,
             )
             _stage.value = LogStage.Saved
         }
@@ -228,20 +279,67 @@ class LogFoodViewModel(
 
     fun relog(entry: FoodEntry) {
         viewModelScope.launch {
-            repository.relog(entry, _mealType.value)
+            repository.relog(entry, _mealType.value, logDate)
             _stage.value = LogStage.Saved
         }
     }
 
     fun relogMeal(meal: GroupedMeal) {
         viewModelScope.launch {
-            repository.relogMeal(meal, _mealType.value)
+            repository.relogMeal(meal, _mealType.value, logDate)
             _stage.value = LogStage.Saved
         }
     }
 
     fun toggleMealFavorite(meal: GroupedMeal) {
         viewModelScope.launch { repository.setMealFavorite(meal.groupId, !meal.isFavorite) }
+    }
+
+    // ---- Database foods & barcodes (zero tokens) ----
+
+    /** Starts a review with one database food, or adds it to the review that's already open. */
+    fun addProduct(product: FoodProduct, grams: Float) {
+        val item = product.toItem(grams)
+        val current = _stage.value
+        if (current is LogStage.Review) {
+            _stage.value = current.copy(items = current.items + EditableItem(nextKey++, item))
+            return
+        }
+        val score = product.healthScore()
+        val analysis = FoodAnalysis(
+            items = listOf(item),
+            healthScore = score,
+            grade = com.sonzzk.claudebite.ai.dto.gradeForScore(score),
+            comment = localComment(score),
+            tip = "",
+            confidence = 1f,
+            modelUsed = "local",
+            mealName = product.name,
+        )
+        _stage.value = LogStage.Review(analysis, listOf(EditableItem(nextKey++, item)), EntrySource.MANUAL, photoPath = null)
+    }
+
+    fun lookupBarcode(code: String) {
+        analyzeJob?.cancel()
+        val previous = _stage.value as? LogStage.Review
+        _stage.value = LogStage.Analyzing(photoPath = null)
+        analyzeJob = viewModelScope.launch {
+            val product = OpenFoodFacts.byBarcode(code)
+            if (product == null) {
+                _stage.value = previous ?: LogStage.Failed(
+                    "I couldn't find barcode $code in the food database. Try \"Scan label\" instead!", noApiKey = false,
+                )
+                return@launch
+            }
+            if (previous != null) _stage.value = previous
+            addProduct(product, product.servingG)
+        }
+    }
+
+    private fun localComment(score: Int) = when {
+        score >= 8 -> "Ooh, a great pick! Logged straight from the food database, zero tokens~"
+        score >= 5 -> "Logged from the food database! Nice and easy~"
+        else -> "A treat! Totally fine. Enjoy it~"
     }
 
     fun toggleFavorite(entry: FoodEntry) {
@@ -258,5 +356,17 @@ class LogFoodViewModel(
                 else -> MealType.SNACK
             }
         }
+    }
+}
+
+/** A logged food as a searchable product (numbers scaled back to per 100 g when the portion is known). */
+internal fun FoodEntry.toProduct(): FoodProduct {
+    val grams = Regex("""(\d+(?:[.,]\d+)?)\s*g\b""").find(portion)?.groupValues?.get(1)?.replace(',', '.')?.toFloatOrNull()
+    return if (grams != null && grams > 0f) {
+        val f = 100f / grams
+        FoodProduct(name, null, calories * f, proteinG * f, carbsG * f, fatG * f, fiberG * f, sugarG * f, grams, portion, FoodProduct.Source.RECENT)
+    } else {
+        // Unknown weight: treat the logged portion as "100 g" so 1x = what they logged before.
+        FoodProduct(name, null, calories.toFloat(), proteinG, carbsG, fatG, fiberG, sugarG, 100f, portion.ifBlank { "1 serving" }, FoodProduct.Source.RECENT)
     }
 }

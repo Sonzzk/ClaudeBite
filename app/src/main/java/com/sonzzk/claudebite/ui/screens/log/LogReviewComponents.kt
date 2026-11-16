@@ -70,6 +70,8 @@ internal fun ReviewContent(
     onRemove: (Long) -> Unit,
     onAddItem: (String, Int, Float, Float, Float) -> Unit,
     onMealName: (String) -> Unit,
+    onSearch: () -> Unit = {},
+    onScanBarcode: () -> Unit = {},
     onSave: () -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -145,10 +147,14 @@ internal fun ReviewContent(
             }
             item {
                 CozyCard {
-                    TextButton(onClick = { addOpen = !addOpen }) {
-                        Icon(Icons.Rounded.Add, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Add item")
+                    Row {
+                        TextButton(onClick = onSearch) { Text("+ Search") }
+                        TextButton(onClick = onScanBarcode) { Text("+ Barcode") }
+                        TextButton(onClick = { addOpen = !addOpen }) {
+                            Icon(Icons.Rounded.Add, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Manual")
+                        }
                     }
                     AnimatedVisibility(addOpen, enter = expandVertically(), exit = shrinkVertically()) {
                         ManualFoodForm("Add") { name, kcal, p, c, f ->

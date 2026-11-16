@@ -28,6 +28,10 @@ import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.Button
@@ -81,6 +85,10 @@ internal fun ChooseContent(
     onToggleFavorite: (FoodEntry) -> Unit,
     onRelogMeal: (GroupedMeal) -> Unit,
     onToggleMealFavorite: (GroupedMeal) -> Unit,
+    onScanBarcode: () -> Unit = {},
+    onSearch: () -> Unit = {},
+    onScanLabel: () -> Unit = {},
+    onVoice: () -> Unit = {},
 ) {
     var description by rememberSaveable { mutableStateOf("") }
     LazyColumn(
@@ -110,6 +118,7 @@ internal fun ChooseContent(
                 )
             }
         }
+        item { ToolRow(onScanBarcode, onSearch, onScanLabel, onVoice) }
         item {
             Column {
                 OutlinedTextField(
@@ -247,6 +256,33 @@ private fun BigActionButton(
             Icon(icon, contentDescription = null, modifier = Modifier.height(36.dp).width(36.dp))
             Spacer(Modifier.height(8.dp))
             Text(label, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+/** Barcode, search, label and voice: four small square buttons in one row. */
+@Composable
+internal fun ToolRow(onScanBarcode: () -> Unit, onSearch: () -> Unit, onScanLabel: () -> Unit, onVoice: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SmallTool("Barcode", Icons.Rounded.QrCodeScanner, "0 tokens", onScanBarcode, Modifier.weight(1f))
+        SmallTool("Search", Icons.Rounded.Search, "0 tokens", onSearch, Modifier.weight(1f))
+        SmallTool("Label", Icons.Rounded.DocumentScanner, "exact", onScanLabel, Modifier.weight(1f))
+        SmallTool("Voice", Icons.Rounded.Mic, "say it", onVoice, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SmallTool(label: String, icon: ImageVector, sub: String, onClick: () -> Unit, modifier: Modifier) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = modifier.height(84.dp),
+    ) {
+        Column(Modifier.fillMaxSize().padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }

@@ -56,10 +56,15 @@ import java.io.File
  * Shown without the bottom bar, so it handles the system bar/keyboard insets itself.
  */
 @Composable
-fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
+fun LogFoodScreen(initialMeal: MealType?, date: String? = null, onDone: () -> Unit) {
     val context = LocalContext.current
     val appContext = context.applicationContext
-    val vm = appViewModel { c -> LogFoodViewModel(c.coach, c.repository, appContext, initialMeal) }
+    val vm = appViewModel { c -> LogFoodViewModel(c.coach, c.repository, appContext, initialMeal, date) }
+    val query by vm.query.collectAsStateWithLifecycle()
+    val results by vm.searchResults.collectAsStateWithLifecycle()
+    val searching by vm.searching.collectAsStateWithLifecycle()
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var labelMode by rememberSaveable { mutableStateOf(false) }
     val stage by vm.stage.collectAsStateWithLifecycle()
     val mealType by vm.mealType.collectAsStateWithLifecycle()
     val recent by vm.recentFoods.collectAsStateWithLifecycle()
@@ -78,7 +83,10 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
     // ---- Photo launchers ----
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         val uri = pendingCameraUri
-        if (success && uri != null) vm.analyzePhoto(uri, hint)
+        if (success && uri != null) {
+            if (labelMode) vm.analyzeLabel(uri, hint) else vm.analyzePhoto(uri, hint)
+        }
+        labelMode = false
     }
     fun launchCamera() {
         val uri = createCaptureUri(context)
@@ -89,8 +97,30 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
         cameraDenied = !granted
         if (granted) launchCamera()
     }
-    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) vm.analyzePhoto(uri, hint)
+    // Up to 4 photos of the same meal (e.g. plate + packaging) are analysed together.
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(4)) { uris ->
+        if (uris.isNotEmpty()) vm.analyzePhotos(uris, hint)
+    }
+    val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val text = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!text.isNullOrBlank()) vm.analyzeText(text)
+    }
+    fun startVoice() {
+        val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "What did you eat?")
+        }
+        runCatching { voice.launch(intent) }
+    }
+    fun scanBarcode() {
+        com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(context)
+            .startScan()
+            .addOnSuccessListener { code -> code.rawValue?.let(vm::lookupBarcode) }
+    }
+    fun scanLabel() {
+        labelMode = true
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (granted) launchCamera() else cameraPermission.launch(Manifest.permission.CAMERA)
     }
 
     // Back from inner steps returns to Choose instead of leaving the screen.
@@ -167,6 +197,10 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
                         onToggleFavorite = vm::toggleFavorite,
                         onRelogMeal = vm::relogMeal,
                         onToggleMealFavorite = vm::toggleMealFavorite,
+                        onScanBarcode = ::scanBarcode,
+                        onSearch = { searchOpen = true },
+                        onScanLabel = ::scanLabel,
+                        onVoice = ::startVoice,
                     )
                     is LogStage.Analyzing -> AnalyzingContent(s.photoPath, outfit, onCancel = vm::cancelAnalysis)
                     is LogStage.Review -> ReviewContent(
@@ -179,6 +213,8 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
                         onRemove = vm::removeItem,
                         onAddItem = vm::addItem,
                         onMealName = vm::setMealName,
+                        onSearch = { searchOpen = true },
+                        onScanBarcode = ::scanBarcode,
                         onSave = vm::save,
                         onRetry = vm::retry,
                     )
@@ -196,6 +232,19 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
                 }
             }
         }
+    }
+    if (searchOpen) {
+        FoodSearchSheet(
+            query = query,
+            results = results,
+            searching = searching,
+            onQuery = vm::setQuery,
+            onPick = { food, grams ->
+                vm.addProduct(food, grams)
+                searchOpen = false
+            },
+            onDismiss = { searchOpen = false },
+        )
     }
 }
 

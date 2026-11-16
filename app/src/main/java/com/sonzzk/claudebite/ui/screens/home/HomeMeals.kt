@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.TextButton
@@ -100,6 +101,8 @@ internal fun MealSection(
     onDelete: (MealLine) -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onEditMeal: (GroupedMeal) -> Unit,
+    copyLabel: String? = null,
+    onCopy: () -> Unit = {},
 ) {
     HomeCard(Modifier.animateContentSize(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow))) {
         Column {
@@ -117,6 +120,13 @@ internal fun MealSection(
                 }
                 FilledTonalIconButton(onClick = onAdd) {
                     Icon(Icons.Rounded.Add, contentDescription = "Add to ${meal.title()}")
+                }
+            }
+            if (copyLabel != null) {
+                TextButton(onClick = onCopy) {
+                    Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(copyLabel)
                 }
             }
             if (lines.isNotEmpty()) Spacer(Modifier.size(8.dp))

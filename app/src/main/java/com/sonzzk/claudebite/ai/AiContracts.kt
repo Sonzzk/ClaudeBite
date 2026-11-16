@@ -76,6 +76,9 @@ sealed class AiError(message: String) : Exception(message) {
 /** Everything the UI needs from Claude. Implemented by ClaudeCoach. */
 interface AiCoach {
     suspend fun analyzeFoodPhoto(jpegBytes: ByteArray, userHint: String?, context: CoachContext): FoodAnalysis
+
+    /** Several photos of ONE meal (e.g. the plate plus the package label), analysed together. */
+    suspend fun analyzeFoodPhotos(jpegs: List<ByteArray>, userHint: String?, context: CoachContext): FoodAnalysis
     suspend fun analyzeFoodText(description: String, context: CoachContext): FoodAnalysis
 
     /**

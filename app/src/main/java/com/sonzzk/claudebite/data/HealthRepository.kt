@@ -71,10 +71,10 @@ class HealthRepository(
         source: EntrySource,
         photoPath: String?,
         mealName: String = analysis.mealName,
+        date: String = today(),
     ) {
         if (items.isEmpty()) return
         val now = System.currentTimeMillis()
-        val date = today()
         val grouped = items.size > 1
         val groupId = if (grouped) now else null
         val name = mealName.trim().ifBlank { com.sonzzk.claudebite.ai.dto.defaultMealName(items) }
@@ -96,21 +96,39 @@ class HealthRepository(
         afterFoodLogged(xp)
     }
 
-    suspend fun logManual(entry: FoodEntry) {
-        food.insert(entry.copy(date = today(), timestamp = System.currentTimeMillis()))
+    suspend fun logManual(entry: FoodEntry, date: String = today()) {
+        food.insert(entry.copy(date = date, timestamp = System.currentTimeMillis()))
         afterFoodLogged(Xp.LOG_FOOD)
     }
 
     /** One-tap re-log of a previous food (zero tokens). */
-    suspend fun relog(entry: FoodEntry, mealType: MealType) {
-        food.insert(entry.copy(id = 0, date = today(), timestamp = System.currentTimeMillis(), mealType = mealType, source = EntrySource.RELOG))
+    suspend fun relog(entry: FoodEntry, mealType: MealType, date: String = today()) {
+        food.insert(
+            entry.copy(
+                id = 0, date = date, timestamp = System.currentTimeMillis(), mealType = mealType,
+                source = EntrySource.RELOG, mealGroupId = null, mealName = null,
+            ),
+        )
         afterFoodLogged(Xp.LOG_FOOD)
     }
 
-    /** Re-logs a whole saved meal as a new group (zero tokens, one XP grant). */
-    suspend fun relogMeal(meal: GroupedMeal, mealType: MealType) {
+    /** Copies everything from one meal slot of [fromDate] into [toDate] ("same breakfast as yesterday"). */
+    suspend fun copyMealSlot(fromDate: String, toDate: String, mealType: MealType): Int {
+        val src = food.entriesFor(fromDate).first().filter { it.mealType == mealType }
+        if (src.isEmpty()) return 0
         val now = System.currentTimeMillis()
-        val date = today()
+        val newGroups = HashMap<Long, Long>()
+        food.insertAll(src.mapIndexed { i, e ->
+            val g = e.mealGroupId?.let { old -> newGroups.getOrPut(old) { now + i } }
+            e.copy(id = 0, date = toDate, timestamp = now, source = EntrySource.RELOG, mealGroupId = g)
+        })
+        afterFoodLogged(Xp.LOG_FOOD)
+        return src.size
+    }
+
+    /** Re-logs a whole saved meal as a new group (zero tokens, one XP grant). */
+    suspend fun relogMeal(meal: GroupedMeal, mealType: MealType, date: String = today()) {
+        val now = System.currentTimeMillis()
         food.insertAll(meal.entries.map {
             it.copy(id = 0, date = date, timestamp = now, mealType = mealType, source = EntrySource.RELOG, mealGroupId = now, mealName = meal.name)
         })
@@ -151,6 +169,7 @@ class HealthRepository(
 
     // ---- Water ----
     fun waterToday(): Flow<Int> = water.totalFor(today())
+    fun waterFor(date: String): Flow<Int> = water.totalFor(date)
 
     suspend fun addWater(ml: Int) {
         water.insert(WaterLog(date = today(), timestamp = System.currentTimeMillis(), amountMl = ml))

@@ -27,6 +27,10 @@ internal fun AppearanceSection() {
     fun update(change: (AppSettings) -> AppSettings) {
         scope.launch { container.profiles.updateSettings(change) }
     }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notifPermission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (!granted) update { it.copy(reminders = false) } }
     SettingsCard("Look & feel", "🎨") {
         ChoiceRow("Claude-chan style", listOf("pixel" to "Pixel", "painted" to "Painted"), settings.mascotStyle) { v ->
             update { it.copy(mascotStyle = v) }
@@ -34,6 +38,7 @@ internal fun AppearanceSection() {
         ChoiceRow("Theme", listOf("system" to "Auto", "light" to "Light", "dark" to "Dark"), settings.theme) { v ->
             update { it.copy(theme = v) }
         }
+        ToggleRow("Pixel font", settings.pixelFont, "Retro letters for titles") { v -> update { it.copy(pixelFont = v) } }
         ToggleRow("8-bit sounds", settings.sounds) { v -> update { it.copy(sounds = v) } }
         ToggleRow("Vibration", settings.haptics) { v -> update { it.copy(haptics = v) } }
         ToggleRow("Hide calorie numbers", settings.hideCalories, "Shows food and macros without kcal") { v ->
@@ -41,6 +46,12 @@ internal fun AppearanceSection() {
         }
         ToggleRow("Meal reminders", settings.reminders, "At most 2 a day, around your usual meal times") { v ->
             update { it.copy(reminders = v) }
+            if (v && android.os.Build.VERSION.SDK_INT >= 33 &&
+                androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.sonzzk.claudebite.ui.screens.home
 
+import com.sonzzk.claudebite.ui.components.kcalLabel
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -113,7 +114,7 @@ internal fun MealSection(
                     Text(meal.title(), style = MaterialTheme.typography.titleMedium)
                     val kcal = lines.sumOf { it.calories }
                     Text(
-                        if (lines.isEmpty()) "Nothing yet" else "$kcal kcal",
+                        if (lines.isEmpty()) "Nothing yet" else kcalLabel(kcal).ifEmpty { "${lines.size} logged" },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -225,7 +226,7 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
             )
         }
         Spacer(Modifier.width(8.dp))
-        Text("${entry.calories} kcal", style = MaterialTheme.typography.labelLarge)
+        Text(kcalLabel(entry.calories), style = MaterialTheme.typography.labelLarge)
         entry.healthScore?.let { score ->
             Spacer(Modifier.width(8.dp))
             Box(Modifier.size(10.dp).background(healthScoreColor(score), CircleShape))
@@ -279,7 +280,7 @@ private fun GroupedMealRow(meal: GroupedMeal, onOpenEntry: (FoodEntry) -> Unit, 
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Text("${meal.calories} kcal", style = MaterialTheme.typography.labelLarge)
+            Text(kcalLabel(meal.calories), style = MaterialTheme.typography.labelLarge)
             meal.healthScore?.let { score ->
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.size(10.dp).background(healthScoreColor(score), CircleShape))
@@ -313,7 +314,7 @@ private fun GroupedMealRow(meal: GroupedMeal, onOpenEntry: (FoodEntry) -> Unit, 
                                 )
                             }
                         }
-                        Text("${entry.calories} kcal", style = MaterialTheme.typography.labelMedium)
+                        Text(kcalLabel(entry.calories), style = MaterialTheme.typography.labelMedium)
                     }
                 }
                 TextButton(onClick = onEdit) {

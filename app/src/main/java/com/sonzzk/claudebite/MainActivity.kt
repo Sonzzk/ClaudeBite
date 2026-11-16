@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
                 "light" -> false
                 else -> isSystemInDarkTheme()
             }
-            ClaudeBiteTheme(darkTheme = dark) {
+            ClaudeBiteTheme(darkTheme = dark, pixelFont = settings.pixelFont) {
                 CompositionLocalProvider(
                     LocalMascotStyle provides settings.mascotStyle,
                     LocalAppSettings provides settings,

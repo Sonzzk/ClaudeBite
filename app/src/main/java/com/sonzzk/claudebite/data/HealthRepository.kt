@@ -142,6 +142,7 @@ class HealthRepository(
     suspend fun setMealFavorite(groupId: Long, favorite: Boolean) = food.setGroupFavorite(groupId, favorite)
     suspend fun deleteEntries(entries: List<FoodEntry>) = food.deleteAll(entries)
 
+    suspend fun allFood(): List<FoodEntry> = food.allNow()
     suspend fun updateEntry(entry: FoodEntry) = food.update(entry)
     suspend fun deleteEntry(entry: FoodEntry) = food.delete(entry)
     suspend fun toggleFavorite(entry: FoodEntry) = food.update(entry.copy(isFavorite = !entry.isFavorite))

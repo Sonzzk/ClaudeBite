@@ -10,7 +10,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import com.sonzzk.claudebite.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,17 +80,27 @@ private val DarkColors = darkColorScheme(
     outline = Color(0xFF5C514B),
 )
 
-private val AppTypography = Typography().let { t ->
-    val rounded = FontFamily.SansSerif
+/** Pixelify Sans (SIL Open Font License) for headings when the pixel font setting is on. */
+private val PixelFamily = FontFamily(
+    Font(R.font.pixelify_sans, FontWeight.Normal),
+    Font(R.font.pixelify_sans, FontWeight.SemiBold),
+    Font(R.font.pixelify_sans, FontWeight.Bold),
+)
+
+private fun typography(pixel: Boolean) = Typography().let { t ->
+    val rounded = if (pixel) PixelFamily else FontFamily.SansSerif
     t.copy(
         displaySmall = t.displaySmall.copy(fontFamily = rounded, fontWeight = FontWeight.Bold),
         headlineMedium = t.headlineMedium.copy(fontFamily = rounded, fontWeight = FontWeight.Bold),
         headlineSmall = t.headlineSmall.copy(fontFamily = rounded, fontWeight = FontWeight.Bold),
         titleLarge = t.titleLarge.copy(fontFamily = rounded, fontWeight = FontWeight.Bold),
         titleMedium = t.titleMedium.copy(fontFamily = rounded, fontWeight = FontWeight.SemiBold),
-        labelLarge = TextStyle(fontFamily = rounded, fontWeight = FontWeight.SemiBold, fontSize = 15.sp),
+        labelLarge = TextStyle(fontFamily = if (pixel) FontFamily.SansSerif else rounded, fontWeight = FontWeight.SemiBold, fontSize = 15.sp),
     )
 }
+
+private val PixelTypography = typography(true)
+private val PlainTypography = typography(false)
 
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -99,10 +111,10 @@ private val AppShapes = Shapes(
 )
 
 @Composable
-fun ClaudeBiteTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun ClaudeBiteTheme(darkTheme: Boolean = isSystemInDarkTheme(), pixelFont: Boolean = true, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = AppTypography,
+        typography = if (pixelFont) PixelTypography else PlainTypography,
         shapes = AppShapes,
         content = content,
     )

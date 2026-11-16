@@ -58,11 +58,15 @@ import com.sonzzk.claudebite.ui.screens.health.WorkoutsScreen
 import com.sonzzk.claudebite.ui.screens.home.HomeScreen
 import com.sonzzk.claudebite.ui.screens.log.LogFoodScreen
 import com.sonzzk.claudebite.ui.screens.onboarding.OnboardingScreen
+import com.sonzzk.claudebite.ui.screens.onboarding.StoryScreen
+import com.sonzzk.claudebite.ui.screens.health.FastingScreen
 import com.sonzzk.claudebite.ui.screens.progress.ProgressScreen
 import com.sonzzk.claudebite.ui.screens.settings.SettingsScreen
 
 object Routes {
     const val ONBOARDING = "onboarding"
+    const val STORY = "story"
+    const val FASTING = "fasting"
     const val HOME = "home"
     const val LOG = "log?meal={meal}&date={date}"
     const val CHAT = "chat"
@@ -95,7 +99,7 @@ fun ClaudeBiteRoot(container: AppContainer) {
 
         val nav = rememberNavController()
         // Decide the start screen once; later changes are handled by the effect below.
-        val start = remember { if (loaded.onboarded) Routes.HOME else Routes.ONBOARDING }
+        val start = remember { if (loaded.onboarded) Routes.HOME else Routes.STORY }
         val backStack by nav.currentBackStackEntryAsState()
         val currentRoute = backStack?.destination?.route
         // Hide the bottom bar while typing so the chat input sits right above the keyboard.
@@ -104,7 +108,7 @@ fun ClaudeBiteRoot(container: AppContainer) {
 
         // "Reset everything" in Settings clears the profile: send the user back to onboarding.
         LaunchedEffect(loaded.onboarded) {
-            if (!loaded.onboarded && nav.currentDestination?.route != Routes.ONBOARDING) {
+            if (!loaded.onboarded && nav.currentDestination?.route != Routes.ONBOARDING && nav.currentDestination?.route != Routes.STORY) {
                 nav.navigate(Routes.ONBOARDING) { popUpTo(0) { inclusive = true } }
             }
         }
@@ -124,6 +128,10 @@ fun ClaudeBiteRoot(container: AppContainer) {
                 },
             ) { padding ->
                 NavHost(nav, startDestination = start, modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
+                    composable(Routes.STORY) {
+                        StoryScreen(onFinished = { nav.navigate(Routes.ONBOARDING) { popUpTo(Routes.STORY) { inclusive = true } } })
+                    }
+                    composable(Routes.FASTING) { FastingScreen(onBack = { nav.popBackStack() }) }
                     composable(Routes.ONBOARDING) {
                         OnboardingScreen(onFinished = {
                             nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }

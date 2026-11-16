@@ -20,6 +20,9 @@ data class DayTotals(
 
 @Dao
 interface FoodDao {
+    @Query("SELECT * FROM food_entries ORDER BY date, timestamp")
+    suspend fun allNow(): List<FoodEntry>
+
     @Query("SELECT * FROM food_entries WHERE date = :date ORDER BY timestamp")
     fun entriesFor(date: String): Flow<List<FoodEntry>>
 

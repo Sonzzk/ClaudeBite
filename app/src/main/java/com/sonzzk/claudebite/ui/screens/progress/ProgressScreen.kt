@@ -93,7 +93,7 @@ fun ProgressScreen(onOpen: (String) -> Unit = {}) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     LegendDot(MaterialTheme.colorScheme.primary, "On target")
-                    LegendDot(SoftRed, "Over")
+                    LegendDot(com.sonzzk.claudebite.ui.components.CozyAmber, "A bit extra")
                 }
             }
 
@@ -134,6 +134,8 @@ fun ProgressScreen(onOpen: (String) -> Unit = {}) {
             )
         }
 
+        WeeklyReportCard()
+        StepsCard()
         WeightForecastCard(state)
         InsightsCard(state)
 

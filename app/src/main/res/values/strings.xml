@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">ClaudeBite</string>
+    <string name="widget_description">Calories left and protein, with Claude-chan</string>
 </resources>

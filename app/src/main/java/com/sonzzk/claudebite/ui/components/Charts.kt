@@ -69,7 +69,7 @@ fun CalorieBarChart(values: List<Int>, target: Int, modifier: Modifier = Modifie
                 drawRoundRect(empty, Offset(x, size.height - 4.dp.toPx()), Size(barWidth, 4.dp.toPx()), CornerRadius(4.dp.toPx()))
             } else {
                 val h = size.height * (kcal / maxValue) * grow.value
-                val color = if (kcal > target * 1.05f) SoftRed else primary
+                val color = if (kcal > target * 1.05f) CozyAmber else primary
                 drawRoundRect(color, Offset(x, size.height - h), Size(barWidth, h), CornerRadius(barWidth / 3))
             }
         }

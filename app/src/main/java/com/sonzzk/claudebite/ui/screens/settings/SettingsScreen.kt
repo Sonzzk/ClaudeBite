@@ -91,6 +91,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             AppearanceSection()
+            ExportSection()
             BrainSection(state, vm)
             UsageSection(state, vm::resetUsage)
             ProfileSection(state.profile, vm::updateProfile)

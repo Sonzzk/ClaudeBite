@@ -37,7 +37,14 @@ data class AppSettings(
     val reminders: Boolean = true,
     /** Has the user seen the story intro? */
     val seenStory: Boolean = false,
+    /** Pixel font for headings. */
+    val pixelFont: Boolean = true,
 )
+
+/** Fasting timer: when the current fast started (0 = not fasting) and the goal length. */
+data class FastingState(val startedAt: Long = 0L, val goalHours: Int = 16) {
+    val active: Boolean get() = startedAt > 0L
+}
 
 class ProfileRepository(private val context: Context) {
 
@@ -67,11 +74,14 @@ class ProfileRepository(private val context: Context) {
         val hideCalories = booleanPreferencesKey("hide_calories")
         val reminders = booleanPreferencesKey("reminders")
         val seenStory = booleanPreferencesKey("seen_story")
+        val pixelFont = booleanPreferencesKey("pixel_font")
+        val fastStart = longPreferencesKey("fast_start")
+        val fastGoal = intPreferencesKey("fast_goal")
     }
 
-    val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
+    private fun readSettings(p: Preferences): AppSettings {
         val d = AppSettings()
-        AppSettings(
+        return AppSettings(
             mascotStyle = p[Keys.mascotStyle] ?: d.mascotStyle,
             theme = p[Keys.theme] ?: d.theme,
             sounds = p[Keys.sounds] ?: d.sounds,
@@ -79,22 +89,27 @@ class ProfileRepository(private val context: Context) {
             hideCalories = p[Keys.hideCalories] ?: d.hideCalories,
             reminders = p[Keys.reminders] ?: d.reminders,
             seenStory = p[Keys.seenStory] ?: d.seenStory,
+            pixelFont = p[Keys.pixelFont] ?: d.pixelFont,
         )
     }
 
+    val fasting: Flow<FastingState> = context.dataStore.data.map { p ->
+        FastingState(p[Keys.fastStart] ?: 0L, p[Keys.fastGoal] ?: 16)
+    }
+
+    suspend fun startFast(goalHours: Int) {
+        context.dataStore.edit { it[Keys.fastStart] = System.currentTimeMillis(); it[Keys.fastGoal] = goalHours }
+    }
+
+    suspend fun endFast() {
+        context.dataStore.edit { it[Keys.fastStart] = 0L }
+    }
+
+    val settings: Flow<AppSettings> = context.dataStore.data.map { readSettings(it) }
+
     suspend fun updateSettings(change: (AppSettings) -> AppSettings) {
         context.dataStore.edit { p ->
-            val d = AppSettings()
-            val cur = AppSettings(
-                mascotStyle = p[Keys.mascotStyle] ?: d.mascotStyle,
-                theme = p[Keys.theme] ?: d.theme,
-                sounds = p[Keys.sounds] ?: d.sounds,
-                haptics = p[Keys.haptics] ?: d.haptics,
-                hideCalories = p[Keys.hideCalories] ?: d.hideCalories,
-                reminders = p[Keys.reminders] ?: d.reminders,
-                seenStory = p[Keys.seenStory] ?: d.seenStory,
-            )
-            val n = change(cur)
+            val n = change(readSettings(p))
             p[Keys.mascotStyle] = n.mascotStyle
             p[Keys.theme] = n.theme
             p[Keys.sounds] = n.sounds
@@ -102,6 +117,7 @@ class ProfileRepository(private val context: Context) {
             p[Keys.hideCalories] = n.hideCalories
             p[Keys.reminders] = n.reminders
             p[Keys.seenStory] = n.seenStory
+            p[Keys.pixelFont] = n.pixelFont
         }
     }
 

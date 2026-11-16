@@ -77,6 +77,8 @@ import kotlin.math.sin
 
 /** Soft red used for "over target" states. Gentle on purpose: going over is not a failure. */
 val SoftRed = Color(0xFFE57373)
+/** Warm, non-judgy colour for going past the calorie target. */
+val CozyAmber = Color(0xFFF0A860)
 
 /** Color for a Claude-chan health score (1-10): green is great, red is "maybe sometimes". */
 fun healthScoreColor(score: Int): Color = when {
@@ -142,7 +144,8 @@ fun AnimatedCounter(
 
 /**
  * The big calorie gauge: a thick rounded 270-degree arc that fills as you eat.
- * When you go over, a soft red arc grows on top and the center says "kcal over".
+ * Past the target a warm amber arc grows on top and the center says "kcal extra" (never red or scolding).
+ * With [hideNumbers] it shows a percentage instead of calories.
  */
 @Composable
 fun CalorieRing(
@@ -151,6 +154,7 @@ fun CalorieRing(
     modifier: Modifier = Modifier,
     size: Dp = 168.dp,
     strokeWidth: Dp = 18.dp,
+    hideNumbers: Boolean = LocalAppSettings.current.hideCalories,
 ) {
     val safeTarget = target.coerceAtLeast(1)
     val ratio = eaten / safeTarget.toFloat()
@@ -169,24 +173,36 @@ fun CalorieRing(
             val stroke = Stroke(width = sw, cap = StrokeCap.Round)
             drawArc(track, 135f, 270f, false, topLeft, arcSize, style = stroke)
             if (fill > 0.002f) drawArc(primary, 135f, 270f * fill, false, topLeft, arcSize, style = stroke)
-            if (overflow > 0.002f) drawArc(SoftRed, 135f, 270f * overflow, false, topLeft, arcSize, style = stroke)
+            if (overflow > 0.002f) drawArc(CozyAmber, 135f, 270f * overflow, false, topLeft, arcSize, style = stroke)
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            AnimatedCounter(
-                value = abs(target - eaten),
-                style = MaterialTheme.typography.headlineMedium,
-                color = if (over) SoftRed else MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                if (over) "kcal over" else "kcal left",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (over) SoftRed else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "$eaten / $target",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        if (hideNumbers) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                AnimatedCounter(
+                    value = (ratio * 100).toInt(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    suffix = "%",
+                )
+                Text("of today's fuel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                AnimatedCounter(
+                    value = abs(target - eaten),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    if (over) "kcal extra" else "kcal left",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (over) CozyAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "$eaten / $target",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

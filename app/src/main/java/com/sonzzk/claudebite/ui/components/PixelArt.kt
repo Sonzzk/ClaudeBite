@@ -94,3 +94,8 @@ fun PixelSprite(name: String, modifier: Modifier = Modifier, contentDescription:
     val painter = remember(bitmap) { BitmapPainter(bitmap, filterQuality = FilterQuality.None) }
     Image(painter, contentDescription, modifier, contentScale = ContentScale.Fit)
 }
+
+/** "640 kcal", or an empty string when the user chose to hide calorie numbers. */
+@androidx.compose.runtime.Composable
+@androidx.compose.runtime.ReadOnlyComposable
+fun kcalLabel(kcal: Int): String = if (LocalAppSettings.current.hideCalories) "" else "$kcal kcal"

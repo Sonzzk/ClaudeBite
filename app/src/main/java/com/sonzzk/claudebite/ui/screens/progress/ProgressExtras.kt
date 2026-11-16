@@ -29,14 +29,14 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
-/** Shortcuts to the health tools: workouts, photos, grocery list, Food Dex. */
+/** Shortcuts to the health tools: workouts, photos, grocery list, fasting timer. */
 @Composable
 internal fun HealthToolsRow(onOpen: (String) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ToolTile("Workouts", "px_prop_15", Modifier.weight(1f)) { onOpen("workouts") }
         ToolTile("Photos", "px_prop_14", Modifier.weight(1f)) { onOpen("photos") }
         ToolTile("Groceries", "px_prop_04", Modifier.weight(1f)) { onOpen("groceries") }
-        ToolTile("Food Dex", "px_prop_10", Modifier.weight(1f)) { onOpen("dex") }
+        ToolTile("Fasting", "px_prop_18", Modifier.weight(1f)) { onOpen("fasting") }
     }
 }
 

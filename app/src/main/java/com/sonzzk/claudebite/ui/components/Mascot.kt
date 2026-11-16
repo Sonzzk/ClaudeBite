@@ -109,6 +109,19 @@ fun Mascot(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val style = LocalMascotStyle.current
+    val small = size < 80.dp
+
+    // Idle variety: every few seconds she switches to another pose of the same mood (pixel style only).
+    var variant by remember { mutableStateOf(0) }
+    LaunchedEffect(mood, style) {
+        variant = 0
+        if (style != "pixel" || small) return@LaunchedEffect
+        while (true) {
+            delay(5_500L + Random.nextLong(0, 3_000))
+            variant++
+        }
+    }
 
     // Idle breathing: 0..1..0 forever.
     val idle = rememberInfiniteTransition(label = "idle")
@@ -168,11 +181,18 @@ fun Mascot(
                     scaleY = tapScale.value * (1f + 0.10f * squash) * (1f + 0.018f * breath)
                 },
         ) {
-            Crossfade(targetState = mood, animationSpec = tween(260), label = "moodFade") { m ->
-                val resId = remember(outfit, m, size) {
-                    MascotArtLookup.resolve(context.resources, context.packageName, outfit, m, small = size < 80.dp)
+            Crossfade(targetState = mood to variant, animationSpec = tween(260), label = "moodFade") { (m, v) ->
+                val pixelName = remember(outfit, m, small, v, style) {
+                    if (style == "pixel") {
+                        PixelArt.candidates(outfit, m, small, v).firstOrNull { PixelArt.id(context, it) != 0 }
+                    } else null
                 }
-                if (resId != 0) {
+                val resId = remember(outfit, m, size) {
+                    MascotArtLookup.resolve(context.resources, context.packageName, outfit, m, small = small)
+                }
+                if (pixelName != null) {
+                    PixelSprite(pixelName, Modifier.fillMaxSize())
+                } else if (resId != 0) {
                     Image(
                         painter = painterResource(resId),
                         contentDescription = null,

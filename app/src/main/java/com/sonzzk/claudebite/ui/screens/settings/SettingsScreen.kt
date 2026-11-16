@@ -90,6 +90,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            AppearanceSection()
             BrainSection(state, vm)
             UsageSection(state, vm::resetUsage)
             ProfileSection(state.profile, vm::updateProfile)

@@ -9,7 +9,7 @@ for im in ims:
     if x+w>W: x=0;y+=rowh+14;rowh=0
     pos.append((x,y)); x+=w+6; rowh=max(rowh,h)
 H=y+rowh+14
-sheet=Image.new('RGBA',(W,H),(255,240,228,255))  # light bg reveals cutout errors
+sheet=Image.new('RGBA',(W,H),(255,240,228,255))
 d=ImageDraw.Draw(sheet)
 for f,im,(x,y) in zip(files,ims,pos):
     sheet.alpha_composite(im.resize((im.width*scale,im.height*scale),Image.NEAREST),(x,y+12))

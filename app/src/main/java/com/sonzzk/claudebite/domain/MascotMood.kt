@@ -13,6 +13,13 @@ enum class MascotMood {
     SLEEPY,     // late night / user away for days
     HUNGRY,     // nothing logged yet today
     WAVING,     // greeting, onboarding
+    LOVE,       // affection / bond moments
+    SHY,        // poked gently
+    CONFUSED,   // "huh?" when Claude couldn't read the photo
+    COZY,       // relaxed evenings, rest days, "it's fine, tomorrow is new"
+    CELEBRATE,  // quests, bosses, big wins
+    WORKING,    // at her laptop while analysing food
+    POUTY,      // poked too many times
 }
 
 /** Picks a mood and a short line for the home screen without calling the API (zero tokens). */
@@ -32,7 +39,8 @@ object MascotBrain {
 
     fun mood(s: Snapshot): MascotMood = when {
         s.daysAway >= 3 -> MascotMood.SLEEPY
-        s.caloriesEaten > s.calorieTarget * 1.15 -> MascotMood.WORRIED
+        // Never sad about how much was eaten: over the target she just gets cozy and supportive.
+        s.caloriesEaten > s.calorieTarget * 1.15 -> MascotMood.COZY
         s.entriesToday == 0 && s.hour >= 10 -> MascotMood.HUNGRY
         s.hour >= 23 || s.hour < 5 -> MascotMood.SLEEPY
         s.caloriesEaten in (s.calorieTarget * 0.9).toInt()..(s.calorieTarget * 1.05).toInt() -> MascotMood.PROUD
@@ -46,7 +54,7 @@ object MascotBrain {
         return when (mood(s)) {
             MascotMood.SLEEPY -> if (s.daysAway >= 3) "I missed you, $n! Let's get back on track together~"
             else "It's late... a light snack at most, then sleep! Rest builds muscle too."
-            MascotMood.WORRIED -> "We went a little over today. No stress! Tomorrow is a fresh start."
+            MascotMood.COZY -> "A big eating day! Totally okay. Bodies need fuel, and tomorrow is a fresh start~"
             MascotMood.HUNGRY -> "I'm hungry! What did you eat today, $n? Snap a photo for me!"
             MascotMood.PROUD -> "Right on target today! I'm so proud of you, $n!"
             MascotMood.EXCITED -> "${s.streak}-day streak! You're unstoppable!"

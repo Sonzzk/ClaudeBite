@@ -24,6 +24,21 @@ data class Progression(
     val lastOpenedEpochDay: Long = 0,
 )
 
+/** App-wide preferences from Settings. */
+data class AppSettings(
+    /** "pixel" (default) or "painted" mascot art. */
+    val mascotStyle: String = "pixel",
+    /** "system", "light" or "dark". */
+    val theme: String = "system",
+    val sounds: Boolean = true,
+    val haptics: Boolean = true,
+    /** Hides calorie numbers for people who find them stressful; macros and food still show. */
+    val hideCalories: Boolean = false,
+    val reminders: Boolean = true,
+    /** Has the user seen the story intro? */
+    val seenStory: Boolean = false,
+)
+
 class ProfileRepository(private val context: Context) {
 
     private object Keys {
@@ -45,6 +60,49 @@ class ProfileRepository(private val context: Context) {
         val affection = intPreferencesKey("affection")
         val outfit = stringPreferencesKey("outfit")
         val lastOpened = longPreferencesKey("last_opened")
+        val mascotStyle = stringPreferencesKey("mascot_style")
+        val theme = stringPreferencesKey("theme")
+        val sounds = booleanPreferencesKey("sounds")
+        val haptics = booleanPreferencesKey("haptics")
+        val hideCalories = booleanPreferencesKey("hide_calories")
+        val reminders = booleanPreferencesKey("reminders")
+        val seenStory = booleanPreferencesKey("seen_story")
+    }
+
+    val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
+        val d = AppSettings()
+        AppSettings(
+            mascotStyle = p[Keys.mascotStyle] ?: d.mascotStyle,
+            theme = p[Keys.theme] ?: d.theme,
+            sounds = p[Keys.sounds] ?: d.sounds,
+            haptics = p[Keys.haptics] ?: d.haptics,
+            hideCalories = p[Keys.hideCalories] ?: d.hideCalories,
+            reminders = p[Keys.reminders] ?: d.reminders,
+            seenStory = p[Keys.seenStory] ?: d.seenStory,
+        )
+    }
+
+    suspend fun updateSettings(change: (AppSettings) -> AppSettings) {
+        context.dataStore.edit { p ->
+            val d = AppSettings()
+            val cur = AppSettings(
+                mascotStyle = p[Keys.mascotStyle] ?: d.mascotStyle,
+                theme = p[Keys.theme] ?: d.theme,
+                sounds = p[Keys.sounds] ?: d.sounds,
+                haptics = p[Keys.haptics] ?: d.haptics,
+                hideCalories = p[Keys.hideCalories] ?: d.hideCalories,
+                reminders = p[Keys.reminders] ?: d.reminders,
+                seenStory = p[Keys.seenStory] ?: d.seenStory,
+            )
+            val n = change(cur)
+            p[Keys.mascotStyle] = n.mascotStyle
+            p[Keys.theme] = n.theme
+            p[Keys.sounds] = n.sounds
+            p[Keys.haptics] = n.haptics
+            p[Keys.hideCalories] = n.hideCalories
+            p[Keys.reminders] = n.reminders
+            p[Keys.seenStory] = n.seenStory
+        }
     }
 
     val profile: Flow<UserProfile> = context.dataStore.data.map { p ->

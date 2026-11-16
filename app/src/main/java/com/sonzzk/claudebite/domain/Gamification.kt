@@ -30,17 +30,45 @@ object Leveling {
     }
 }
 
-/** Outfits for Claude-chan, unlocked by level. The mascot art has one variant per outfit id. */
-data class Outfit(val id: String, val name: String, val unlockLevel: Int)
+/**
+ * Outfits for Claude-chan, unlocked by level. Painted outfits have mascot_<id>_<mood> art; pixel outfits
+ * point at one sprite from Amos's sheet ([pixelSprite]) and fall back to the classic poses for other moods.
+ */
+data class Outfit(val id: String, val name: String, val unlockLevel: Int, val pixelSprite: String? = null)
 
 object Outfits {
+    private fun px(id: String, name: String, level: Int, sprite: Int) = Outfit(id, name, level, "px_outfit_%02d".format(sprite))
+
     val all = listOf(
         Outfit("classic", "Classic Hoodie", 1),
+        px("bomber", "Night Bomber", 2, 0),
         Outfit("chef", "Chef Apron", 3),
+        px("sakura", "Sakura Coat", 4, 3),
         Outfit("gym", "Gym Outfit", 5),
+        px("sunset", "Sunset Jacket", 6, 4),
+        px("school", "School Day", 7, 5),
         Outfit("pajamas", "Cozy Pajamas", 8),
+        px("cloud", "Cloud Fluff", 9, 1),
+        px("midnight", "Midnight Coat", 10, 2),
+        px("lofi", "Lo-fi Hoodie", 11, 6),
         Outfit("idol", "Idol Stage Outfit", 12),
+        px("beret", "Artist Beret", 13, 7),
+        px("explorer", "Explorer", 14, 9),
+        px("angel", "Angel Coat", 15, 10),
+        px("sailor", "Night Sailor", 16, 11),
+        px("sundress", "Sundress", 17, 12),
+        px("detective", "Detective", 18, 13),
+        px("streamer", "Streamer", 19, 14),
+        px("casual", "Weekend Casual", 20, 15),
+        px("bandit", "Bandit Cap", 22, 16),
+        px("maid", "Cat Café Maid", 24, 17),
+        px("bonnet", "Frilly Bonnet", 26, 20),
+        px("witch", "Little Witch", 28, 19),
+        px("cathood", "Cat Hood", 30, 8),
+        px("onesie", "Cat Onesie", 35, 18),
     )
+
+    fun byId(id: String): Outfit? = all.firstOrNull { it.id == id }
 
     fun unlocked(level: Int) = all.filter { it.unlockLevel <= level }
 }

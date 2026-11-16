@@ -4,4 +4,4 @@
     so the release resource shrinker can't see that it's used. This tells it to keep all of them.
 -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/mascot_*" />
+    tools:keep="@drawable/mascot_*,@drawable/px_*" />

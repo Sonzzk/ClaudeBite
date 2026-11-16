@@ -90,12 +90,22 @@ private fun LevelChip(level: LevelInfo) {
 
 /** A few cute things Claude-chan says when you poke her. Costs zero tokens. */
 private val pokeReactions = listOf(
-    MascotMood.HAPPY to "Hehe, that tickles!",
+    MascotMood.SHY to "Eep! That tickles~",
+    MascotMood.HAPPY to "Hehe, hi there!",
     MascotMood.EXCITED to "You're doing amazing today!",
     MascotMood.WAVING to "Hi hi! I'm always here for you~",
+    MascotMood.LOVE to "Aww, you're sweet. Let's keep going together!",
     MascotMood.PROUD to "Remember: progress, not perfection!",
+    MascotMood.CONFUSED to "Hm? Did you need something?",
     MascotMood.EXCITED to "Let's eat something colorful today!",
     MascotMood.HAPPY to "Have you had some water lately? Tap a glass!",
+)
+
+private val pokeTooMuch = listOf(
+    "Hey! Stop poking me! >_<",
+    "I'm not a button, you know!",
+    "Mou~ my halo is getting dizzy!",
+    "Poke me one more time and I'm hiding your snacks!",
 )
 
 /** Claude-chan (tap her! the Mascot itself does the heart burst) next to the calorie ring, with her line and a chat shortcut. */
@@ -104,6 +114,8 @@ internal fun HeroCard(state: HomeUiState, onOpenChat: () -> Unit) {
     val snapshot = state.mascotSnapshot
     var pokes by remember { mutableIntStateOf(0) }
     var reaction by remember { mutableStateOf<Pair<MascotMood, String>?>(null) }
+    val recentPokes = remember { ArrayDeque<Long>() }
+    val feedback = com.sonzzk.claudebite.ui.components.rememberFeedback()
     LaunchedEffect(pokes) {
         if (pokes > 0) {
             delay(3_500)
@@ -122,7 +134,17 @@ internal fun HeroCard(state: HomeUiState, onOpenChat: () -> Unit) {
                         size = 130.dp,
                         outfit = state.progression.equippedOutfit,
                         onClick = {
-                            reaction = pokeReactions[pokes % pokeReactions.size]
+                            val now = System.currentTimeMillis()
+                            recentPokes.addLast(now)
+                            while (recentPokes.isNotEmpty() && now - recentPokes.first() > 3_000) recentPokes.removeFirst()
+                            if (recentPokes.size >= 5) {
+                                reaction = MascotMood.POUTY to pokeTooMuch[pokes % pokeTooMuch.size]
+                                recentPokes.clear()
+                                feedback.pout()
+                            } else {
+                                reaction = pokeReactions[pokes % pokeReactions.size]
+                                feedback.pop()
+                            }
                             pokes++
                         },
                     )

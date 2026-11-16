@@ -12,7 +12,7 @@ import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Insights
-import androidx.compose.material.icons.rounded.Checkroom
+import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -44,6 +44,17 @@ import com.sonzzk.claudebite.ui.LocalAppContainer
 import com.sonzzk.claudebite.ui.components.RewardOverlay
 import com.sonzzk.claudebite.ui.screens.chat.ChatScreen
 import com.sonzzk.claudebite.ui.screens.closet.ClosetScreen
+import com.sonzzk.claudebite.ui.screens.health.GroceryScreen
+import com.sonzzk.claudebite.ui.screens.health.SubScreen
+import com.sonzzk.claudebite.ui.screens.play.DexScreen
+import com.sonzzk.claudebite.ui.screens.play.MiniGameScreen
+import com.sonzzk.claudebite.ui.screens.play.PlayRoutes
+import com.sonzzk.claudebite.ui.screens.play.PlayScreen
+import com.sonzzk.claudebite.ui.screens.play.RoomScreen
+import com.sonzzk.claudebite.ui.screens.play.ShopScreen
+import com.sonzzk.claudebite.ui.screens.play.StickersScreen
+import com.sonzzk.claudebite.ui.screens.health.PhotosScreen
+import com.sonzzk.claudebite.ui.screens.health.WorkoutsScreen
 import com.sonzzk.claudebite.ui.screens.home.HomeScreen
 import com.sonzzk.claudebite.ui.screens.log.LogFoodScreen
 import com.sonzzk.claudebite.ui.screens.onboarding.OnboardingScreen
@@ -58,6 +69,9 @@ object Routes {
     const val PROGRESS = "progress"
     const val CLOSET = "closet"
     const val SETTINGS = "settings"
+    const val WORKOUTS = "workouts"
+    const val PHOTOS = "photos"
+    const val GROCERIES = "groceries"
 
     fun log(meal: MealType?, date: String? = null) = "log?meal=${meal?.name ?: ""}&date=${date ?: ""}"
 }
@@ -68,7 +82,7 @@ private val tabs = listOf(
     Tab(Routes.HOME, "Today", Icons.Rounded.Home),
     Tab(Routes.CHAT, "Claude-chan", Icons.AutoMirrored.Rounded.Chat),
     Tab(Routes.PROGRESS, "Progress", Icons.Rounded.Insights),
-    Tab(Routes.CLOSET, "Closet", Icons.Rounded.Checkroom),
+    Tab(PlayRoutes.PLAY, "Play", Icons.Rounded.SportsEsports),
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -135,8 +149,17 @@ fun ClaudeBiteRoot(container: AppContainer) {
                         LogFoodScreen(initialMeal = meal, date = date, onDone = { nav.popBackStack() })
                     }
                     composable(Routes.CHAT) { ChatScreen() }
-                    composable(Routes.PROGRESS) { ProgressScreen() }
-                    composable(Routes.CLOSET) { ClosetScreen() }
+                    composable(Routes.PROGRESS) { ProgressScreen(onOpen = { nav.navigate(it) }) }
+                    composable(Routes.WORKOUTS) { WorkoutsScreen(onBack = { nav.popBackStack() }) }
+                    composable(Routes.PHOTOS) { PhotosScreen(onBack = { nav.popBackStack() }) }
+                    composable(Routes.GROCERIES) { GroceryScreen(onBack = { nav.popBackStack() }) }
+                    composable(PlayRoutes.PLAY) { PlayScreen(onOpen = { nav.navigate(it) }) }
+                    composable(Routes.CLOSET) { SubScreen("Closet", onBack = { nav.popBackStack() }) { ClosetScreen() } }
+                    composable(PlayRoutes.ROOM) { RoomScreen(onBack = { nav.popBackStack() }, onShop = { nav.navigate(PlayRoutes.SHOP) }) }
+                    composable(PlayRoutes.SHOP) { ShopScreen(onBack = { nav.popBackStack() }) }
+                    composable(PlayRoutes.DEX) { DexScreen(onBack = { nav.popBackStack() }) }
+                    composable(PlayRoutes.STICKERS) { StickersScreen(onBack = { nav.popBackStack() }) }
+                    composable(PlayRoutes.MINIGAME) { MiniGameScreen(onBack = { nav.popBackStack() }) }
                     composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
                 }
             }

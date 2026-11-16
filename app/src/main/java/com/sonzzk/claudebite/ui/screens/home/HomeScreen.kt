@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun HomeScreen(onLogFood: (MealType?, String) -> Unit, onOpenSettings: () -> Unit, onOpenChat: () -> Unit) {
-    val vm = appViewModel { c -> HomeViewModel(c.repository) }
+    val vm = appViewModel { c -> HomeViewModel(c.repository, c.tools, c.game) }
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -89,6 +89,11 @@ fun HomeScreen(onLogFood: (MealType?, String) -> Unit, onOpenSettings: () -> Uni
             item(key = "hero") {
                 HeroCard(state = state, onOpenChat = onOpenChat)
             }
+            if (state.isToday && (state.note?.sleepHours == null || state.note?.mood == null)) {
+                item(key = "checkin") {
+                    CheckInCard(onSave = vm::saveCheckIn)
+                }
+            }
             item(key = "macros") {
                 HomeCard {
                     MacroRow(state.protein, state.carbs, state.fat, state.targets)
@@ -101,6 +106,16 @@ fun HomeScreen(onLogFood: (MealType?, String) -> Unit, onOpenSettings: () -> Uni
                         goalMl = state.profile.waterGoalMl,
                         onAdd = { if (state.isToday) vm.addWater(it) },
                         onUndo = { if (state.isToday) vm.undoWater() },
+                    )
+                }
+            }
+            if (state.isToday && java.time.LocalTime.now().hour >= 14) {
+                item(key = "snacks") {
+                    SnackIdeasCard(
+                        kcalLeft = state.budget - state.eaten,
+                        proteinLeft = state.targets.proteinG - state.protein,
+                        hideCalories = com.sonzzk.claudebite.ui.components.LocalAppSettings.current.hideCalories,
+                        onPick = { onLogFood(MealType.SNACK, state.date) },
                     )
                 }
             }

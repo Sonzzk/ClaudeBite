@@ -68,12 +68,27 @@ fun RewardOverlay(modifier: Modifier = Modifier) {
     val pills = remember { mutableStateListOf<XpPill>() }
     val queue = remember { mutableStateListOf<Celebration>() }
 
+    val game = LocalAppContainer.current.game
+    LaunchedEffect(game) {
+        game.events.collect { e ->
+            val moment = when (e) {
+                is com.sonzzk.claudebite.data.GameEvent.QuestComplete ->
+                    Reward.GameMoment(if (e.quest.weekly) "BOSS DEFEATED ⚔️" else "QUEST COMPLETE ✨", e.quest.title, "Claim +${e.quest.coins} Bites in the Play tab")
+                is com.sonzzk.claudebite.data.GameEvent.NewFood ->
+                    Reward.GameMoment("NEW IN THE FOOD DEX 📖", e.name.substringBefore(" · ").replaceFirstChar { it.uppercase() }, "${e.total} foods discovered")
+                is com.sonzzk.claudebite.data.GameEvent.LetterUnlocked ->
+                    Reward.GameMoment("A LETTER FOR YOU 💌", e.title, "Read it in Play → Stickers, plus a free sticker!")
+                is com.sonzzk.claudebite.data.GameEvent.Coins -> null
+            }
+            if (moment != null) queue.add(Celebration(System.nanoTime(), moment))
+        }
+    }
     LaunchedEffect(repository) {
         repository.rewards.collect { reward ->
             val id = System.nanoTime()
             when (reward) {
                 is Reward.XpGained -> pills.add(XpPill(id, reward.amount))
-                is Reward.LevelUp, is Reward.BadgeUnlocked -> queue.add(Celebration(id, reward))
+                is Reward.LevelUp, is Reward.BadgeUnlocked, is Reward.GameMoment -> queue.add(Celebration(id, reward))
             }
         }
     }
@@ -201,6 +216,15 @@ private fun CelebrationCard(reward: Reward, onDismiss: () -> Unit) {
                         Text("BADGE UNLOCKED 🏅", style = MaterialTheme.typography.labelLarge, color = colors.primary)
                         Text(reward.badge.title, style = MaterialTheme.typography.titleLarge, color = colors.onSurface)
                         Text(reward.badge.description, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                    }
+                }
+                is Reward.GameMoment -> {
+                    Mascot(MascotMood.CELEBRATE, size = 72.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(reward.label, style = MaterialTheme.typography.labelLarge, color = colors.primary)
+                        Text(reward.title, style = MaterialTheme.typography.titleLarge, color = colors.onSurface)
+                        Text(reward.text, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
                     }
                 }
                 is Reward.XpGained -> Text("+${reward.amount} XP", textAlign = TextAlign.Center)

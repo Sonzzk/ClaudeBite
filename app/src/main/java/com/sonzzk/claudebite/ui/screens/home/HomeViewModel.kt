@@ -43,7 +43,11 @@ data class HomeUiState(
     val isToday: Boolean = true,
     /** The previous day's entries, for "Copy yesterday's lunch". */
     val previousDay: List<FoodEntry> = emptyList(),
+    /** Calories burned in workouts that day; added to the food budget. */
+    val burned: Int = 0,
+    val note: com.sonzzk.claudebite.data.db.DayNote? = null,
 ) {
+    val budget: Int get() = targets.calories + burned
     val eaten: Int get() = entries.sumOf { it.calories }
     val protein: Float get() = entries.sumOf { it.proteinG.toDouble() }.toFloat()
     val carbs: Float get() = entries.sumOf { it.carbsG.toDouble() }.toFloat()
@@ -59,7 +63,7 @@ data class HomeUiState(
             name = profile.name,
             hour = LocalTime.now().hour,
             caloriesEaten = eaten,
-            calorieTarget = targets.calories,
+            calorieTarget = budget,
             entriesToday = entries.size,
             waterMl = waterMl,
             waterGoalMl = profile.waterGoalMl,
@@ -69,7 +73,11 @@ data class HomeUiState(
 }
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
+class HomeViewModel(
+    private val repository: HealthRepository,
+    private val tools: com.sonzzk.claudebite.data.HealthToolsRepository,
+    private val game: com.sonzzk.claudebite.data.GameRepository? = null,
+) : ViewModel() {
 
     private val daysAway = MutableStateFlow(0)
     private val selectedDate = MutableStateFlow(LocalDate.now())
@@ -94,7 +102,9 @@ class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
                 repository.entriesFor(d.toString()),
                 repository.entriesFor(d.minusDays(1).toString()),
                 repository.waterFor(d.toString()),
-            ) { e, prev, w -> DayData(d, e, prev, w) }
+                tools.burnedOn(d.toString()),
+                tools.note(d.toString()),
+            ) { e, prev, w, burn, note -> DayData(d, e, prev, w, burn, note) }
         },
         pendingDeletes,
         daysAway,
@@ -111,6 +121,8 @@ class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
             date = day.date.toString(),
             isToday = day.date == LocalDate.now(),
             previousDay = day.previous,
+            burned = day.burned,
+            note = day.note,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -121,6 +133,22 @@ class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
             val last = repository.profiles.progression.first().lastOpenedEpochDay
             daysAway.value = if (last == 0L) 0 else (todayEpoch - last).toInt().coerceAtLeast(0)
             repository.profiles.markOpened(todayEpoch)
+        }
+    }
+
+    /** Morning check-in: sleep hours + quality, and mood. Merges with what's already saved for that day. */
+    fun saveCheckIn(sleepHours: Float?, sleepQuality: Int?, mood: Int?) {
+        viewModelScope.launch {
+            val d = state.value.date
+            if (state.value.isToday) game?.onCheckIn()
+            val old = state.value.note ?: com.sonzzk.claudebite.data.db.DayNote(date = d)
+            tools.putNote(
+                old.copy(
+                    sleepHours = sleepHours ?: old.sleepHours,
+                    sleepQuality = sleepQuality ?: old.sleepQuality,
+                    mood = mood ?: old.mood,
+                ),
+            )
         }
     }
 
@@ -168,4 +196,11 @@ class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
     }
 }
 
-private data class DayData(val date: LocalDate, val entries: List<FoodEntry>, val previous: List<FoodEntry>, val water: Int)
+private data class DayData(
+    val date: LocalDate,
+    val entries: List<FoodEntry>,
+    val previous: List<FoodEntry>,
+    val water: Int,
+    val burned: Int,
+    val note: com.sonzzk.claudebite.data.db.DayNote?,
+)

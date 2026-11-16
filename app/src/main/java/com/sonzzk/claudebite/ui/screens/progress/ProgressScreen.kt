@@ -50,7 +50,7 @@ private val shortDate = DateTimeFormatter.ofPattern("MMM d")
 /** Charts and stats: calories vs target, macros, weight trend, streak calendar. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProgressScreen() {
+fun ProgressScreen(onOpen: (String) -> Unit = {}) {
     val vm = appViewModel { c -> ProgressViewModel(c.repository) }
     val state by vm.state.collectAsStateWithLifecycle()
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
@@ -78,6 +78,8 @@ fun ProgressScreen() {
         }
 
         StatsRow(state)
+
+        HealthToolsRow(onOpen)
 
         if (!state.loading && state.allTotals.isEmpty()) {
             EmptyStateCard(MascotMood.HUNGRY, "Log your first meal and I'll draw you the cutest charts!")
@@ -131,6 +133,9 @@ fun ProgressScreen() {
                 modifier = Modifier.align(Alignment.End),
             )
         }
+
+        WeightForecastCard(state)
+        InsightsCard(state)
 
         ProgressCard("Streak calendar", "Last 10 weeks · darker = closer to your target") {
             StreakHeatmap(state.caloriesByDate, state.targets.calories, state.today)

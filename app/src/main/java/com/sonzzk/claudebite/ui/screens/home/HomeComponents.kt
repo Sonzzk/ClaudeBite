@@ -152,7 +152,7 @@ internal fun HeroCard(state: HomeUiState, onOpenChat: () -> Unit) {
                         },
                     )
                 }
-                CalorieRing(eaten = state.eaten, target = state.targets.calories, size = 150.dp)
+                CalorieRing(eaten = state.eaten, target = state.budget, size = 150.dp)
             }
             AnimatedContent(
                 targetState = line,
@@ -200,6 +200,44 @@ internal fun DateStrip(selected: java.time.LocalDate, onSelect: (java.time.Local
                 )
                 Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.titleMedium, color = fg)
             }
+        }
+    }
+}
+
+/** Morning check-in: how long and how well you slept, and your mood. Two taps, zero tokens. */
+@Composable
+internal fun CheckInCard(onSave: (Float?, Int?, Int?) -> Unit) {
+    var hours by remember { mutableStateOf<Float?>(null) }
+    var mood by remember { mutableStateOf<Int?>(null) }
+    HomeCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Morning check-in ☀️", style = MaterialTheme.typography.titleMedium)
+            Text("How long did you sleep?", style = MaterialTheme.typography.bodyMedium)
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val opts = listOf(4f, 5f, 6f, 7f, 8f, 9f, 10f)
+                items(opts.size) { i ->
+                    val h = opts[i]
+                    androidx.compose.material3.FilterChip(
+                        selected = hours == h,
+                        onClick = { hours = h },
+                        label = { Text(if (h == 4f) "≤4h" else if (h == 10f) "10h+" else "${h.toInt()}h") },
+                    )
+                }
+            }
+            Text("And your mood?", style = MaterialTheme.typography.bodyMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("😫", "😕", "😐", "🙂", "😄").forEachIndexed { i, e ->
+                    androidx.compose.material3.FilterChip(selected = mood == i + 1, onClick = { mood = i + 1 }, label = { Text(e) })
+                }
+            }
+            androidx.compose.material3.Button(
+                onClick = {
+                    val quality = hours?.let { h -> when { h < 5 -> 1; h < 6 -> 2; h < 7 -> 3; h < 8.5 -> 4; else -> 5 } }
+                    onSave(hours, quality, mood)
+                },
+                enabled = hours != null || mood != null,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Save") }
         }
     }
 }

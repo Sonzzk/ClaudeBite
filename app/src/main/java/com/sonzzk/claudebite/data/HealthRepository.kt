@@ -34,12 +34,15 @@ sealed interface Reward {
     data class XpGained(val amount: Int) : Reward
     data class LevelUp(val newLevel: Int) : Reward
     data class BadgeUnlocked(val badge: Badge) : Reward
+    /** Game-layer moments: quest complete, new Food Dex entry, a letter from Claude-chan. */
+    data class GameMoment(val label: String, val title: String, val text: String) : Reward
 }
 
 /** Single entry point for app data. ViewModels talk to this, not to DAOs directly. */
 class HealthRepository(
     private val db: AppDatabase,
     val profiles: ProfileRepository,
+    private val game: GameRepository? = null,
 ) {
     private val food = db.foodDao()
     private val water = db.waterDao()
@@ -93,12 +96,12 @@ class HealthRepository(
         if (source == EntrySource.PHOTO) xp += Xp.LOG_PHOTO_BONUS
         if (analysis.healthScore >= 8) xp += Xp.HEALTHY_FOOD_BONUS
         if (analysis.healthScore >= 10) unlock(Badge.GREEN_PLATE)
-        afterFoodLogged(xp)
+        afterFoodLogged(xp, items.map { it.name }, analysis.healthScore, photoPath != null)
     }
 
     suspend fun logManual(entry: FoodEntry, date: String = today()) {
         food.insert(entry.copy(date = date, timestamp = System.currentTimeMillis()))
-        afterFoodLogged(Xp.LOG_FOOD)
+        afterFoodLogged(Xp.LOG_FOOD, listOf(entry.name), entry.healthScore, false)
     }
 
     /** One-tap re-log of a previous food (zero tokens). */
@@ -109,7 +112,7 @@ class HealthRepository(
                 source = EntrySource.RELOG, mealGroupId = null, mealName = null,
             ),
         )
-        afterFoodLogged(Xp.LOG_FOOD)
+        afterFoodLogged(Xp.LOG_FOOD, listOf(entry.name), entry.healthScore, false)
     }
 
     /** Copies everything from one meal slot of [fromDate] into [toDate] ("same breakfast as yesterday"). */
@@ -122,7 +125,7 @@ class HealthRepository(
             val g = e.mealGroupId?.let { old -> newGroups.getOrPut(old) { now + i } }
             e.copy(id = 0, date = toDate, timestamp = now, source = EntrySource.RELOG, mealGroupId = g)
         })
-        afterFoodLogged(Xp.LOG_FOOD)
+        afterFoodLogged(Xp.LOG_FOOD, src.map { it.name }, src.firstOrNull()?.healthScore, false)
         return src.size
     }
 
@@ -132,7 +135,7 @@ class HealthRepository(
         food.insertAll(meal.entries.map {
             it.copy(id = 0, date = date, timestamp = now, mealType = mealType, source = EntrySource.RELOG, mealGroupId = now, mealName = meal.name)
         })
-        afterFoodLogged(Xp.LOG_FOOD)
+        afterFoodLogged(Xp.LOG_FOOD, meal.entries.map { it.name }, meal.healthScore, false)
     }
 
     suspend fun updateMeal(groupId: Long, name: String, mealType: MealType) = food.updateGroup(groupId, name, mealType.name)
@@ -143,9 +146,11 @@ class HealthRepository(
     suspend fun deleteEntry(entry: FoodEntry) = food.delete(entry)
     suspend fun toggleFavorite(entry: FoodEntry) = food.update(entry.copy(isFavorite = !entry.isFavorite))
 
-    private suspend fun afterFoodLogged(xp: Int) {
-        if (food.count() == 1) unlock(Badge.FIRST_BITE)
+    private suspend fun afterFoodLogged(xp: Int, names: List<String> = emptyList(), healthScore: Int? = null, photo: Boolean = false) {
+        val count = food.count()
+        if (count == 1) unlock(Badge.FIRST_BITE)
         val streak = currentStreak()
+        game?.onFoodLogged(names, healthScore, photo, streak, count)
         if (streak >= 3) unlock(Badge.STREAK_3)
         if (streak >= 7) unlock(Badge.STREAK_7)
         if (streak >= 30) unlock(Badge.STREAK_30)
@@ -158,7 +163,14 @@ class HealthRepository(
         val profile = profiles.profile.first()
         val targets = NutritionCalculator.targets(profile)
         val todayTotals = food.dailyTotalsSince(today()).first().firstOrNull() ?: return
-        if (todayTotals.proteinG >= targets.proteinG) unlock(Badge.PROTEIN_PRO)
+        if (todayTotals.proteinG >= targets.proteinG) {
+            unlock(Badge.PROTEIN_PRO)
+            game?.report(com.sonzzk.claudebite.domain.GameMetric.PROTEIN_GOAL_DAY)
+        }
+        val slots = food.entriesFor(today()).first().map { it.mealType }.toSet()
+        if (slots.containsAll(listOf(MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER))) {
+            game?.report(com.sonzzk.claudebite.domain.GameMetric.ALL_MEALS_DAY)
+        }
         // "Bullseye" only counts in the evening, when the day is mostly done.
         if (LocalTime.now().hour >= 19 && kotlin.math.abs(todayTotals.calories - targets.calories) <= 100) {
             unlock(Badge.ON_TARGET)
@@ -174,7 +186,10 @@ class HealthRepository(
     suspend fun addWater(ml: Int) {
         water.insert(WaterLog(date = today(), timestamp = System.currentTimeMillis(), amountMl = ml))
         val goal = profiles.profile.first().waterGoalMl
-        if (water.totalFor(today()).first() >= goal) unlock(Badge.HYDRATED)
+        if (water.totalFor(today()).first() >= goal) {
+            unlock(Badge.HYDRATED)
+            game?.report(com.sonzzk.claudebite.domain.GameMetric.WATER_GOAL_DAY)
+        }
         grantXp(Xp.LOG_WATER)
     }
 
@@ -187,6 +202,7 @@ class HealthRepository(
         weight.upsert(WeightLog(date = today(), timestamp = System.currentTimeMillis(), weightKg = kg))
         profiles.updateWeight(kg)
         unlock(Badge.WEIGH_IN)
+        game?.report(com.sonzzk.claudebite.domain.GameMetric.WEIGH_IN)
         grantXp(Xp.LOG_WEIGHT)
     }
 
@@ -198,6 +214,7 @@ class HealthRepository(
     suspend fun addChat(message: ChatMessage) {
         chat.insert(message)
         if (message.role == com.sonzzk.claudebite.data.db.ChatRole.USER) {
+            game?.onChat()
             grantXp(Xp.CHAT)
             if (chat.lastN(1000).count { it.role == com.sonzzk.claudebite.data.db.ChatRole.USER } >= 20) unlock(Badge.CHATTY)
         }

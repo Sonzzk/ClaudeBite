@@ -16,6 +16,8 @@ class AppContainer(context: Context) {
     val database: AppDatabase = AppDatabase.create(context)
     val profiles = ProfileRepository(context)
     val settings = SecureSettings(context)
-    val repository = HealthRepository(database, profiles)
+    val game = com.sonzzk.claudebite.data.GameRepository(database, profiles)
+    val repository = HealthRepository(database, profiles, game)
     val coach: AiCoach = ClaudeCoach(settings, repository)
+    val tools = com.sonzzk.claudebite.data.HealthToolsRepository(database)
 }

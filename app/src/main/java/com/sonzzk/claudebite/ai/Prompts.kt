@@ -22,6 +22,7 @@ object Prompts {
         Identify every food and drink in the photo or description and estimate realistic portions and nutrition.
         Rules:
         - One item per distinct food. Numbers are for the whole portion shown, not per 100 g.
+        - mealName: a short natural name for the whole meal as a person would say it (e.g. "Chicken rice bowl", "Oatmeal with berries"). For a single item, use that item's name.
         - Use the user's hint when given. If a portion is unclear, assume a typical serving.
         - Count hidden calories: cooking oil, butter, dressings, sauces, sugary drinks.
         - Use standard nutrition data (USDA-style). Round calories to 5 kcal, grams to 1 decimal.

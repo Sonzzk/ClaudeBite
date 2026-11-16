@@ -63,6 +63,7 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
     val stage by vm.stage.collectAsStateWithLifecycle()
     val mealType by vm.mealType.collectAsStateWithLifecycle()
     val recent by vm.recentFoods.collectAsStateWithLifecycle()
+    val recentMeals by vm.recentMeals.collectAsStateWithLifecycle()
     val targets by vm.targets.collectAsStateWithLifecycle()
 
     val profiles = LocalAppContainer.current.profiles
@@ -154,6 +155,7 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
                         quickAddOpen = quickAddOpen,
                         onQuickAddOpen = { quickAddOpen = it },
                         recent = recent,
+                        recentMeals = recentMeals,
                         onSnap = {
                             val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
                             if (granted) launchCamera() else cameraPermission.launch(Manifest.permission.CAMERA)
@@ -163,6 +165,8 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
                         onQuickAdd = vm::quickAdd,
                         onRelog = vm::relog,
                         onToggleFavorite = vm::toggleFavorite,
+                        onRelogMeal = vm::relogMeal,
+                        onToggleMealFavorite = vm::toggleMealFavorite,
                     )
                     is LogStage.Analyzing -> AnalyzingContent(s.photoPath, outfit, onCancel = vm::cancelAnalysis)
                     is LogStage.Review -> ReviewContent(
@@ -174,6 +178,7 @@ fun LogFoodScreen(initialMeal: MealType?, onDone: () -> Unit) {
                         onMultiplier = vm::setMultiplier,
                         onRemove = vm::removeItem,
                         onAddItem = vm::addItem,
+                        onMealName = vm::setMealName,
                         onSave = vm::save,
                         onRetry = vm::retry,
                     )

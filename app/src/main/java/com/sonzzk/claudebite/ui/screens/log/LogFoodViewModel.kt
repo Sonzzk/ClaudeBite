@@ -14,6 +14,7 @@ import com.sonzzk.claudebite.data.db.EntrySource
 import com.sonzzk.claudebite.data.db.FoodEntry
 import com.sonzzk.claudebite.data.db.MealType
 import com.sonzzk.claudebite.data.prefs.DailyTargets
+import com.sonzzk.claudebite.domain.GroupedMeal
 import com.sonzzk.claudebite.domain.NutritionCalculator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +56,9 @@ sealed interface LogStage {
         val items: List<EditableItem>,
         val source: EntrySource,
         val photoPath: String?,
+        /** Editable name for the whole meal; used when there is more than one item. */
+        val mealName: String = analysis.mealName,
+        val saving: Boolean = false,
     ) : LogStage {
         val total: List<AnalyzedItem> get() = items.map { it.scaled }
     }
@@ -87,6 +91,9 @@ class LogFoodViewModel(
 
     val recentFoods: StateFlow<List<FoodEntry>> =
         repository.recentFoods().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val recentMeals: StateFlow<List<GroupedMeal>> =
+        repository.recentMeals().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Daily targets, for the macro bars on the review screen. */
     val targets: StateFlow<DailyTargets?> = repository.profiles.profile
@@ -191,11 +198,15 @@ class LogFoodViewModel(
         r.copy(items = r.items + EditableItem(nextKey++, item))
     }
 
+    fun setMealName(name: String) = editReview { r -> r.copy(mealName = name.take(60)) }
+
+    /** Saves the reviewed items as one meal. Ignores repeat taps while a save is running. */
     fun save() {
         val review = _stage.value as? LogStage.Review ?: return
-        if (review.items.isEmpty()) return
+        if (review.items.isEmpty() || review.saving) return
+        _stage.value = review.copy(saving = true)
         viewModelScope.launch {
-            repository.logAnalysis(review.analysis, review.total, _mealType.value, review.source, review.photoPath)
+            repository.logAnalysis(review.analysis, review.total, _mealType.value, review.source, review.photoPath, review.mealName)
             _stage.value = LogStage.Saved
         }
     }
@@ -220,6 +231,17 @@ class LogFoodViewModel(
             repository.relog(entry, _mealType.value)
             _stage.value = LogStage.Saved
         }
+    }
+
+    fun relogMeal(meal: GroupedMeal) {
+        viewModelScope.launch {
+            repository.relogMeal(meal, _mealType.value)
+            _stage.value = LogStage.Saved
+        }
+    }
+
+    fun toggleMealFavorite(meal: GroupedMeal) {
+        viewModelScope.launch { repository.setMealFavorite(meal.groupId, !meal.isFavorite) }
     }
 
     fun toggleFavorite(entry: FoodEntry) {

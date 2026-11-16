@@ -10,6 +10,7 @@ import kotlin.math.roundToInt
  * fields are `var` with defaults. ProGuard keeps this package so the names survive minification.
  */
 data class FoodAnalysisDto(
+    var mealName: String = "",
     var items: List<FoodItemDto> = emptyList(),
     var healthScore: Int = 5,
     var grade: String = "",
@@ -53,8 +54,10 @@ fun FoodAnalysisDto.toFoodAnalysis(modelUsed: String): FoodAnalysis {
     val score = healthScore.coerceIn(1, 10)
     val cleanGrade = grade.trim().uppercase().take(1).takeIf { it in VALID_GRADES } ?: gradeForScore(score)
     val cleanConfidence = if (confidence.isNaN()) 0.5 else confidence.coerceIn(0.0, 1.0)
+    val cleanItems = items.map { it.toAnalyzedItem() }
     return FoodAnalysis(
-        items = items.map { it.toAnalyzedItem() },
+        items = cleanItems,
+        mealName = mealName.trim().take(60).ifBlank { defaultMealName(cleanItems) },
         healthScore = score,
         grade = cleanGrade,
         comment = comment.trim(),
@@ -74,5 +77,13 @@ fun FoodItemDto.toAnalyzedItem(): AnalyzedItem = AnalyzedItem(
     fiberG = fiberG.grams(),
     sugarG = sugarG.grams(),
 )
+
+/** "Rice, chicken & 2 more" when Claude didn't name the meal. */
+fun defaultMealName(items: List<AnalyzedItem>): String = when (items.size) {
+    0 -> "Meal"
+    1 -> items[0].name
+    2 -> "${items[0].name} & ${items[1].name}"
+    else -> "${items[0].name}, ${items[1].name} & ${items.size - 2} more"
+}
 
 private val VALID_GRADES = setOf("A", "B", "C", "D", "F")

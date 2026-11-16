@@ -66,6 +66,16 @@ class FoodAnalysisDtoTest {
         assertEquals(27f, result.items[0].carbsG)
         assertEquals("B", result.grade)
         assertEquals(0.9f, result.confidence)
+        // No mealName in the JSON: falls back to the item's name.
+        assertEquals("Banana", result.mealName)
+    }
+
+    @Test
+    fun mealName_isKeptOrBuiltFromItems() {
+        val named = FoodAnalysisDto(mealName = " Chicken rice bowl ").toFoodAnalysis("m")
+        assertEquals("Chicken rice bowl", named.mealName)
+        val items = listOf(FoodItemDto(name = "Rice"), FoodItemDto(name = "Chicken"), FoodItemDto(name = "Broccoli"), FoodItemDto(name = "Sauce"))
+        assertEquals("Rice, Chicken & 2 more", FoodAnalysisDto(items = items).toFoodAnalysis("m").mealName)
     }
 
     @Test

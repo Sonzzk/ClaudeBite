@@ -36,6 +36,7 @@ object FoodAnalysisSchema {
     val schema: Map<String, Any> = mapOf(
         "type" to "object",
         "properties" to mapOf(
+            "mealName" to string("Short name for the whole meal, e.g. 'Chicken rice bowl'"),
             "items" to mapOf("type" to "array", "items" to itemSchema),
             "healthScore" to mapOf("type" to "integer", "description" to "1-10 fit for the user's goal"),
             "grade" to mapOf("type" to "string", "enum" to listOf("A", "B", "C", "D", "F")),
@@ -43,7 +44,7 @@ object FoodAnalysisSchema {
             "tip" to string("One short practical tip"),
             "confidence" to number("0-1 confidence in the estimate"),
         ),
-        "required" to listOf("items", "healthScore", "grade", "comment", "tip", "confidence"),
+        "required" to listOf("mealName", "items", "healthScore", "grade", "comment", "tip", "confidence"),
         "additionalProperties" to false,
     )
 }

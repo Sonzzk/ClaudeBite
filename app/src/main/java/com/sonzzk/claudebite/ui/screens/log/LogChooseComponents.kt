@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sonzzk.claudebite.data.db.FoodEntry
 import com.sonzzk.claudebite.data.db.MealType
+import com.sonzzk.claudebite.domain.GroupedMeal
 import com.sonzzk.claudebite.domain.MascotMood
 import com.sonzzk.claudebite.ui.components.Mascot
 import com.sonzzk.claudebite.ui.components.SpeechBubble
@@ -71,12 +72,15 @@ internal fun ChooseContent(
     quickAddOpen: Boolean,
     onQuickAddOpen: (Boolean) -> Unit,
     recent: List<FoodEntry>,
+    recentMeals: List<GroupedMeal>,
     onSnap: () -> Unit,
     onPick: () -> Unit,
     onDescribe: (String) -> Unit,
     onQuickAdd: (String, Int, Float, Float, Float) -> Unit,
     onRelog: (FoodEntry) -> Unit,
     onToggleFavorite: (FoodEntry) -> Unit,
+    onRelogMeal: (GroupedMeal) -> Unit,
+    onToggleMealFavorite: (GroupedMeal) -> Unit,
 ) {
     var description by rememberSaveable { mutableStateOf("") }
     LazyColumn(
@@ -164,17 +168,42 @@ internal fun ChooseContent(
                 }
             }
         }
+        if (recentMeals.isNotEmpty()) {
+            item {
+                Text(
+                    "Recent meals",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                )
+            }
+            items(recentMeals.sortedByDescending { it.isFavorite }, key = { it.key }) { meal ->
+                RecentRow(
+                    title = meal.name,
+                    subtitle = "${meal.entries.size} items · ${meal.calories} kcal · P ${meal.proteinG.roundToInt()}g",
+                    favorite = meal.isFavorite,
+                    onRelog = { onRelogMeal(meal) },
+                    onToggleFavorite = { onToggleMealFavorite(meal) },
+                )
+            }
+        }
         if (recent.isNotEmpty()) {
             item {
                 Text(
-                    "Recent & favorites",
+                    "Recent foods",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(start = 4.dp, top = 4.dp),
                 )
             }
             items(recent, key = { it.id }) { entry ->
-                RecentFoodRow(entry, onRelog = { onRelog(entry) }, onToggleFavorite = { onToggleFavorite(entry) })
+                RecentRow(
+                    title = entry.name,
+                    subtitle = "${entry.portion} · ${entry.calories} kcal · P ${entry.proteinG.roundToInt()}g",
+                    favorite = entry.isFavorite,
+                    onRelog = { onRelog(entry) },
+                    onToggleFavorite = { onToggleFavorite(entry) },
+                )
             }
         }
     }
@@ -222,9 +251,9 @@ private fun BigActionButton(
     }
 }
 
-/** One recent food: tap "+" to log it again instantly (no AI call). */
+/** One recent food or meal: tap "+" to log it again instantly (no AI call). */
 @Composable
-private fun RecentFoodRow(entry: FoodEntry, onRelog: () -> Unit, onToggleFavorite: () -> Unit) {
+private fun RecentRow(title: String, subtitle: String, favorite: Boolean, onRelog: () -> Unit, onToggleFavorite: () -> Unit) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -233,15 +262,15 @@ private fun RecentFoodRow(entry: FoodEntry, onRelog: () -> Unit, onToggleFavorit
         Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onToggleFavorite) {
                 Icon(
-                    if (entry.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                    contentDescription = if (entry.isFavorite) "Unfavorite" else "Favorite",
-                    tint = if (entry.isFavorite) Palette.Butter else MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                    contentDescription = if (favorite) "Unfavorite" else "Favorite",
+                    tint = if (favorite) Palette.Butter else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text(entry.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${entry.portion} · ${entry.calories} kcal · P ${entry.proteinG.roundToInt()}g",
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -249,7 +278,7 @@ private fun RecentFoodRow(entry: FoodEntry, onRelog: () -> Unit, onToggleFavorit
                 )
             }
             IconButton(onClick = onRelog) {
-                Icon(Icons.Rounded.AddCircle, contentDescription = "Log ${entry.name} again", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.AddCircle, contentDescription = "Log $title again", tint = MaterialTheme.colorScheme.primary)
             }
         }
     }

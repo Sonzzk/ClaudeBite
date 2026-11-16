@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -68,6 +69,7 @@ internal fun ReviewContent(
     onMultiplier: (Long, Float) -> Unit,
     onRemove: (Long) -> Unit,
     onAddItem: (String, Int, Float, Float, Float) -> Unit,
+    onMealName: (String) -> Unit,
     onSave: () -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -115,6 +117,29 @@ internal fun ReviewContent(
                 }
             }
             item { MealChips(mealType, onMealType) }
+            if (review.items.size > 1) {
+                item {
+                    CozyCard {
+                        Text("Saved as one meal", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = review.mealName,
+                            onValueChange = onMealName,
+                            label = { Text("Meal name") },
+                            placeholder = { Text("e.g. Chicken rice bowl") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            "The ${review.items.size} items below are its ingredients. Tap the meal on Today to see them.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 6.dp, start = 4.dp),
+                        )
+                    }
+                }
+            }
             items(review.items, key = { it.key }) { item ->
                 ItemCard(item, onMultiplier = { onMultiplier(item.key, it) }, onRemove = { onRemove(item.key) })
             }
@@ -144,7 +169,7 @@ internal fun ReviewContent(
             }
             Button(
                 onClick = onSave,
-                enabled = review.items.isNotEmpty(),
+                enabled = review.items.isNotEmpty() && !review.saving,
                 shape = RoundedCornerShape(50),
                 modifier = Modifier.weight(1.6f).height(52.dp),
             ) { Text("Save ✨") }

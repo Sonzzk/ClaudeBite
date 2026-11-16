@@ -30,6 +30,8 @@ data class FoodAnalysis(
     /** 0-1, how sure Claude is. Low confidence asks the user to check portions. */
     val confidence: Float,
     val modelUsed: String,
+    /** Name for the whole meal ("Chicken rice bowl"); several items are saved as one grouped meal. */
+    val mealName: String = "",
 ) {
     val totalCalories: Int get() = items.sumOf { it.calories }
     val totalProtein: Float get() = items.sumOf { it.proteinG.toDouble() }.toFloat()

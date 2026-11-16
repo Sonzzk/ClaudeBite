@@ -15,7 +15,9 @@ import com.sonzzk.claudebite.data.db.WaterLog
 import com.sonzzk.claudebite.data.db.WeightLog
 import com.sonzzk.claudebite.data.prefs.ProfileRepository
 import com.sonzzk.claudebite.domain.Badge
+import com.sonzzk.claudebite.domain.GroupedMeal
 import com.sonzzk.claudebite.domain.Leveling
+import com.sonzzk.claudebite.domain.MealGrouping
 import com.sonzzk.claudebite.domain.NutritionCalculator
 import com.sonzzk.claudebite.domain.Streaks
 import com.sonzzk.claudebite.domain.Xp
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -55,17 +58,26 @@ class HealthRepository(
     fun entriesFor(date: String): Flow<List<FoodEntry>> = food.entriesFor(date)
     fun dailyTotalsSince(date: String): Flow<List<DayTotals>> = food.dailyTotalsSince(date)
     fun recentFoods(): Flow<List<FoodEntry>> = food.recentDistinct()
+    fun recentMeals(): Flow<List<GroupedMeal>> = food.recentMealEntries().map { MealGrouping.meals(it) }
 
-    /** Saves every item of an analysis as separate entries (so the user can delete one item later). */
+    /**
+     * Saves an analysis. Several items become ONE meal: they share a mealGroupId and [mealName], so Home
+     * shows a single card ("Chicken rice bowl, 640 kcal") that expands to the ingredients.
+     */
     suspend fun logAnalysis(
         analysis: FoodAnalysis,
         items: List<AnalyzedItem>,
         mealType: MealType,
         source: EntrySource,
         photoPath: String?,
+        mealName: String = analysis.mealName,
     ) {
+        if (items.isEmpty()) return
         val now = System.currentTimeMillis()
         val date = today()
+        val grouped = items.size > 1
+        val groupId = if (grouped) now else null
+        val name = mealName.trim().ifBlank { com.sonzzk.claudebite.ai.dto.defaultMealName(items) }
         food.insertAll(items.map {
             FoodEntry(
                 date = date, timestamp = now, mealType = mealType,
@@ -74,6 +86,7 @@ class HealthRepository(
                 fiberG = it.fiberG, sugarG = it.sugarG,
                 healthScore = analysis.healthScore, mascotComment = analysis.comment,
                 photoPath = photoPath, source = source,
+                mealGroupId = groupId, mealName = if (grouped) name else null,
             )
         })
         var xp = Xp.LOG_FOOD
@@ -93,6 +106,20 @@ class HealthRepository(
         food.insert(entry.copy(id = 0, date = today(), timestamp = System.currentTimeMillis(), mealType = mealType, source = EntrySource.RELOG))
         afterFoodLogged(Xp.LOG_FOOD)
     }
+
+    /** Re-logs a whole saved meal as a new group (zero tokens, one XP grant). */
+    suspend fun relogMeal(meal: GroupedMeal, mealType: MealType) {
+        val now = System.currentTimeMillis()
+        val date = today()
+        food.insertAll(meal.entries.map {
+            it.copy(id = 0, date = date, timestamp = now, mealType = mealType, source = EntrySource.RELOG, mealGroupId = now, mealName = meal.name)
+        })
+        afterFoodLogged(Xp.LOG_FOOD)
+    }
+
+    suspend fun updateMeal(groupId: Long, name: String, mealType: MealType) = food.updateGroup(groupId, name, mealType.name)
+    suspend fun setMealFavorite(groupId: Long, favorite: Boolean) = food.setGroupFavorite(groupId, favorite)
+    suspend fun deleteEntries(entries: List<FoodEntry>) = food.deleteAll(entries)
 
     suspend fun updateEntry(entry: FoodEntry) = food.update(entry)
     suspend fun deleteEntry(entry: FoodEntry) = food.delete(entry)

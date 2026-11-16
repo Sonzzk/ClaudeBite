@@ -1,6 +1,19 @@
 package com.sonzzk.claudebite.ui.screens.home
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.rotate
+import com.sonzzk.claudebite.domain.GroupedMeal
+import com.sonzzk.claudebite.domain.MealLine
+import com.sonzzk.claudebite.domain.SingleFood
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -78,14 +91,15 @@ private fun MealType.emoji() = when (this) {
     MealType.SNACK -> "🍪"
 }
 
-/** One meal card (Breakfast, Lunch...) with its foods and a "+" that opens Log Food for that meal. */
+/** One meal card (Breakfast, Lunch...) with its foods and meals, and a "+" that opens Log Food for that meal. */
 @Composable
 internal fun MealSection(
     meal: MealType,
-    entries: List<FoodEntry>,
+    lines: List<MealLine>,
     onAdd: () -> Unit,
-    onDelete: (FoodEntry) -> Unit,
-    onOpen: (FoodEntry) -> Unit,
+    onDelete: (MealLine) -> Unit,
+    onOpenEntry: (FoodEntry) -> Unit,
+    onEditMeal: (GroupedMeal) -> Unit,
 ) {
     HomeCard(Modifier.animateContentSize(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow))) {
         Column {
@@ -94,9 +108,9 @@ internal fun MealSection(
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(meal.title(), style = MaterialTheme.typography.titleMedium)
-                    val kcal = entries.sumOf { it.calories }
+                    val kcal = lines.sumOf { it.calories }
                     Text(
-                        if (entries.isEmpty()) "Nothing yet" else "$kcal kcal",
+                        if (lines.isEmpty()) "Nothing yet" else "$kcal kcal",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -105,11 +119,16 @@ internal fun MealSection(
                     Icon(Icons.Rounded.Add, contentDescription = "Add to ${meal.title()}")
                 }
             }
-            if (entries.isNotEmpty()) Spacer(Modifier.size(8.dp))
+            if (lines.isNotEmpty()) Spacer(Modifier.size(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                entries.forEach { entry ->
-                    key(entry.id) {
-                        SwipeableEntry(entry, onDelete = { onDelete(entry) }, onClick = { onOpen(entry) })
+                lines.forEach { line ->
+                    key(line.key) {
+                        SwipeToDelete(onDelete = { onDelete(line) }) {
+                            when (line) {
+                                is SingleFood -> EntryRow(line.entry, onClick = { onOpenEntry(line.entry) })
+                                is GroupedMeal -> GroupedMealRow(line, onOpenEntry = onOpenEntry, onEdit = { onEditMeal(line) })
+                            }
+                        }
                     }
                 }
             }
@@ -120,7 +139,7 @@ internal fun MealSection(
 /** Swipe right-to-left to delete. The list hides the item immediately; the screen shows an Undo snackbar. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeableEntry(entry: FoodEntry, onDelete: () -> Unit, onClick: () -> Unit) {
+private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
     val dismissState = rememberSwipeToDismissBoxState()
     LaunchedEffect(dismissState.currentValue) {
         if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) onDelete()
@@ -139,7 +158,24 @@ private fun SwipeableEntry(entry: FoodEntry, onDelete: () -> Unit, onClick: () -
             ) { Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = Color.White) }
         },
     ) {
-        EntryRow(entry, onClick)
+        content()
+    }
+}
+
+@Composable
+private fun Thumb(photoPath: String?, letter: String, description: String) {
+    if (photoPath != null) {
+        AsyncImage(
+            model = File(photoPath),
+            contentDescription = description,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(44.dp).clip(MaterialTheme.shapes.small),
+        )
+    } else {
+        Box(
+            Modifier.size(44.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) { Text(letter, style = MaterialTheme.typography.titleMedium) }
     }
 }
 
@@ -154,19 +190,7 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (entry.photoPath != null) {
-            AsyncImage(
-                model = File(entry.photoPath),
-                contentDescription = entry.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(44.dp).clip(MaterialTheme.shapes.small),
-            )
-        } else {
-            Box(
-                Modifier.size(44.dp).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) { Text(entry.name.take(1).uppercase(), style = MaterialTheme.typography.titleMedium) }
-        }
+        Thumb(entry.photoPath, entry.name.take(1).uppercase(), entry.name)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -195,6 +219,156 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
         entry.healthScore?.let { score ->
             Spacer(Modifier.width(8.dp))
             Box(Modifier.size(10.dp).background(healthScoreColor(score), CircleShape))
+        }
+    }
+}
+
+/**
+ * A meal logged in one go ("Chicken rice bowl"): one row with the total, which expands to show each
+ * ingredient. Tap an ingredient to fix it; "Edit meal" renames or moves the whole meal.
+ */
+@Composable
+private fun GroupedMealRow(meal: GroupedMeal, onOpenEntry: (FoodEntry) -> Unit, onEdit: () -> Unit) {
+    var expanded by rememberSaveable(meal.groupId) { mutableStateOf(false) }
+    val arrow by animateFloatAsState(if (expanded) 180f else 0f, label = "arrow")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Thumb(meal.photoPath, "🍽", meal.name)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        meal.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (meal.isFavorite) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.Rounded.Favorite, contentDescription = "Favorite", tint = Palette.SakuraPink, modifier = Modifier.size(14.dp))
+                    }
+                }
+                Text(
+                    "${meal.entries.size} ingredients · P ${meal.proteinG.roundToInt()}g  C ${meal.carbsG.roundToInt()}g  F ${meal.fatG.roundToInt()}g",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("${meal.calories} kcal", style = MaterialTheme.typography.labelLarge)
+            meal.healthScore?.let { score ->
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.size(10.dp).background(healthScoreColor(score), CircleShape))
+            }
+            Icon(
+                Icons.Rounded.ExpandMore,
+                contentDescription = if (expanded) "Hide ingredients" else "Show ingredients",
+                modifier = Modifier.rotate(arrow),
+            )
+        }
+        AnimatedVisibility(expanded, enter = expandVertically(), exit = shrinkVertically()) {
+            Column(Modifier.padding(start = 64.dp, end = 10.dp, bottom = 6.dp)) {
+                meal.entries.forEach { entry ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.small)
+                            .clickable { onOpenEntry(entry) }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (entry.portion.isNotBlank()) {
+                                Text(
+                                    entry.portion,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        Text("${entry.calories} kcal", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                TextButton(onClick = onEdit) {
+                    Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Edit meal")
+                }
+            }
+        }
+    }
+}
+
+/** Bottom sheet for a whole meal: rename it, move it to another meal slot, favourite or delete it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun EditMealSheet(
+    meal: GroupedMeal,
+    onDismiss: () -> Unit,
+    onSave: (name: String, mealType: MealType, favorite: Boolean) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var name by remember { mutableStateOf(meal.name) }
+    var mealType by remember { mutableStateOf(meal.entries.first().mealType) }
+    var favorite by remember { mutableStateOf(meal.isFavorite) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp).navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Edit meal", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                IconToggleButton(checked = favorite, onCheckedChange = { favorite = it }) {
+                    Icon(
+                        if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (favorite) Palette.SakuraPink else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, contentDescription = "Delete meal") }
+            }
+            Text(
+                "${meal.entries.size} ingredients · ${meal.calories} kcal. Tap an ingredient on Today to change it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(name, { name = it.take(60) }, label = { Text("Meal name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MealType.entries.forEach { type ->
+                    FilterChip(
+                        selected = type == mealType,
+                        onClick = { mealType = type },
+                        label = { Text(type.emoji()) },
+                    )
+                }
+            }
+            Text(mealType.title(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                Button(
+                    onClick = { onSave(name.trim().ifBlank { meal.name }, mealType, favorite) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Save") }
+            }
         }
     }
 }

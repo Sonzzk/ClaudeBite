@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonzzk.claudebite.data.db.FoodEntry
 import com.sonzzk.claudebite.data.db.MealType
+import com.sonzzk.claudebite.domain.GroupedMeal
 import com.sonzzk.claudebite.ui.appViewModel
 import com.sonzzk.claudebite.ui.components.MacroRow
 import com.sonzzk.claudebite.ui.components.WaterTracker
@@ -46,22 +47,23 @@ fun HomeScreen(onLogFood: (MealType?) -> Unit, onOpenSettings: () -> Unit, onOpe
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var editing by remember { mutableStateOf<FoodEntry?>(null) }
+    var editingMeal by remember { mutableStateOf<GroupedMeal?>(null) }
 
-    fun deleteWithUndo(entry: FoodEntry) {
-        vm.hideEntry(entry)
+    fun deleteWithUndo(entries: List<FoodEntry>, label: String) {
+        vm.hide(entries)
         scope.launch {
             try {
                 snackbar.currentSnackbarData?.dismiss()
                 val result = snackbar.showSnackbar(
-                    message = "Removed ${entry.name}",
+                    message = "Removed $label",
                     actionLabel = "Undo",
                     withDismissAction = true,
                     duration = SnackbarDuration.Short,
                 )
-                if (result == SnackbarResult.ActionPerformed) vm.undoDelete(entry) else vm.commitDelete(entry)
+                if (result == SnackbarResult.ActionPerformed) vm.undoDelete(entries) else vm.commitDelete(entries)
             } catch (e: CancellationException) {
                 // Screen left while the snackbar was showing: the user didn't undo, so delete for real.
-                vm.commitDelete(entry)
+                vm.commitDelete(entries)
                 throw e
             }
         }
@@ -109,10 +111,14 @@ fun HomeScreen(onLogFood: (MealType?) -> Unit, onOpenSettings: () -> Unit, onOpe
             items(MealType.entries, key = { "meal_${it.name}" }) { meal ->
                 MealSection(
                     meal = meal,
-                    entries = state.byMeal[meal].orEmpty(),
+                    lines = state.linesByMeal[meal].orEmpty(),
                     onAdd = { onLogFood(meal) },
-                    onDelete = ::deleteWithUndo,
-                    onOpen = { editing = it },
+                    onDelete = { line ->
+                        val label = (line as? GroupedMeal)?.name ?: line.entries.first().name
+                        deleteWithUndo(line.entries, label)
+                    },
+                    onOpenEntry = { editing = it },
+                    onEditMeal = { editingMeal = it },
                 )
             }
         }
@@ -129,7 +135,22 @@ fun HomeScreen(onLogFood: (MealType?) -> Unit, onOpenSettings: () -> Unit, onOpe
             },
             onDelete = {
                 editing = null
-                deleteWithUndo(entry)
+                deleteWithUndo(listOf(entry), entry.name)
+            },
+        )
+    }
+
+    editingMeal?.let { meal ->
+        EditMealSheet(
+            meal = meal,
+            onDismiss = { editingMeal = null },
+            onSave = { name, type, favorite ->
+                vm.updateMeal(meal, name, type, favorite)
+                editingMeal = null
+            },
+            onDelete = {
+                editingMeal = null
+                deleteWithUndo(meal.entries, meal.name)
             },
         )
     }

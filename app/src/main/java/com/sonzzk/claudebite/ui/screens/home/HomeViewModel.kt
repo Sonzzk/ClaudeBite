@@ -9,7 +9,10 @@ import com.sonzzk.claudebite.data.prefs.DailyTargets
 import com.sonzzk.claudebite.data.prefs.Progression
 import com.sonzzk.claudebite.data.prefs.UserProfile
 import com.sonzzk.claudebite.domain.LevelInfo
+import com.sonzzk.claudebite.domain.GroupedMeal
 import com.sonzzk.claudebite.domain.Leveling
+import com.sonzzk.claudebite.domain.MealGrouping
+import com.sonzzk.claudebite.domain.MealLine
 import com.sonzzk.claudebite.domain.MascotBrain
 import com.sonzzk.claudebite.domain.NutritionCalculator
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +42,9 @@ data class HomeUiState(
     val carbs: Float get() = entries.sumOf { it.carbsG.toDouble() }.toFloat()
     val fat: Float get() = entries.sumOf { it.fatG.toDouble() }.toFloat()
     val level: LevelInfo get() = Leveling.info(progression.xp)
-    val byMeal: Map<MealType, List<FoodEntry>> get() = entries.groupBy { it.mealType }
+    /** Each meal slot's lines; ingredients logged together are folded into one [GroupedMeal]. */
+    val linesByMeal: Map<MealType, List<MealLine>>
+        get() = entries.groupBy { it.mealType }.mapValues { MealGrouping.lines(it.value) }
 
     /** Input for MascotBrain, which picks Claude-chan's mood and line for free (no AI call). */
     val mascotSnapshot: MascotBrain.Snapshot
@@ -100,19 +105,26 @@ class HomeViewModel(private val repository: HealthRepository) : ViewModel() {
         viewModelScope.launch { repository.undoWater() }
     }
 
-    /** Hides an entry right away; call [commitDelete] or [undoDelete] once the snackbar is gone. */
-    fun hideEntry(entry: FoodEntry) {
-        pendingDeletes.update { it + entry.id }
+    /** Hides entries right away; call [commitDelete] or [undoDelete] once the snackbar is gone. */
+    fun hide(entries: List<FoodEntry>) {
+        pendingDeletes.update { it + entries.map { e -> e.id } }
     }
 
-    fun undoDelete(entry: FoodEntry) {
-        pendingDeletes.update { it - entry.id }
+    fun undoDelete(entries: List<FoodEntry>) {
+        pendingDeletes.update { it - entries.map { e -> e.id }.toSet() }
     }
 
-    fun commitDelete(entry: FoodEntry) {
+    fun commitDelete(entries: List<FoodEntry>) {
         viewModelScope.launch {
-            repository.deleteEntry(entry)
-            pendingDeletes.update { it - entry.id }
+            repository.deleteEntries(entries)
+            pendingDeletes.update { it - entries.map { e -> e.id }.toSet() }
+        }
+    }
+
+    fun updateMeal(meal: GroupedMeal, name: String, mealType: MealType, favorite: Boolean) {
+        viewModelScope.launch {
+            repository.updateMeal(meal.groupId, name, mealType)
+            if (favorite != meal.isFavorite) repository.setMealFavorite(meal.groupId, favorite)
         }
     }
 

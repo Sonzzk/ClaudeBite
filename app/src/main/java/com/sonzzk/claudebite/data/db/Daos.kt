@@ -36,12 +36,31 @@ interface FoodDao {
     @Query("SELECT DISTINCT date FROM food_entries ORDER BY date DESC")
     suspend fun loggedDatesDesc(): List<String>
 
-    /** Most recent distinct foods, for one-tap re-logging (costs no tokens). */
+    /** Most recent distinct stand-alone foods, for one-tap re-logging (costs no tokens). */
     @Query(
         """SELECT * FROM food_entries WHERE id IN
-           (SELECT MAX(id) FROM food_entries GROUP BY name) ORDER BY isFavorite DESC, timestamp DESC LIMIT :limit"""
+           (SELECT MAX(id) FROM food_entries WHERE mealGroupId IS NULL GROUP BY name)
+           ORDER BY isFavorite DESC, timestamp DESC LIMIT :limit"""
     )
     fun recentDistinct(limit: Int = 20): Flow<List<FoodEntry>>
+
+    /** Every ingredient of the most recent distinct meals (one group per meal name), newest first. */
+    @Query(
+        """SELECT * FROM food_entries WHERE mealGroupId IN
+           (SELECT MAX(mealGroupId) FROM food_entries WHERE mealGroupId IS NOT NULL
+            GROUP BY mealName ORDER BY MAX(timestamp) DESC LIMIT :limit)
+           ORDER BY timestamp DESC, id"""
+    )
+    fun recentMealEntries(limit: Int = 10): Flow<List<FoodEntry>>
+
+    @Query("SELECT * FROM food_entries WHERE mealGroupId = :groupId ORDER BY id")
+    suspend fun entriesInGroup(groupId: Long): List<FoodEntry>
+
+    @Query("UPDATE food_entries SET mealName = :name, mealType = :mealType WHERE mealGroupId = :groupId")
+    suspend fun updateGroup(groupId: Long, name: String, mealType: String)
+
+    @Query("UPDATE food_entries SET isFavorite = :favorite WHERE mealGroupId = :groupId")
+    suspend fun setGroupFavorite(groupId: Long, favorite: Boolean)
 
     @Query("SELECT COUNT(*) FROM food_entries")
     suspend fun count(): Int
@@ -50,6 +69,7 @@ interface FoodDao {
     @Insert suspend fun insertAll(entries: List<FoodEntry>)
     @Update suspend fun update(entry: FoodEntry)
     @Delete suspend fun delete(entry: FoodEntry)
+    @Delete suspend fun deleteAll(entries: List<FoodEntry>)
 }
 
 @Dao

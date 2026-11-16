@@ -30,6 +30,13 @@ data class FoodEntry(
     val photoPath: String? = null,
     val source: EntrySource = EntrySource.MANUAL,
     val isFavorite: Boolean = false,
+    /**
+     * Items logged together as one meal (e.g. the 4 ingredients of a rice bowl) share this id, so Home
+     * shows them as a single card that expands to the ingredients. Null for a stand-alone food.
+     */
+    val mealGroupId: Long? = null,
+    /** Name of the whole meal, e.g. "Chicken rice bowl". Same on every entry of a group. */
+    val mealName: String? = null,
 )
 
 @Entity(tableName = "water_logs", indices = [Index("date")])
